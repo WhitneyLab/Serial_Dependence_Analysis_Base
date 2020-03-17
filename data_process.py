@@ -101,6 +101,39 @@ def getnBack_diff(trial_number, stimulusID, responseError, nBack):
 
 	return differencePrevious, filtered_y
 
+def outlier_removal_RT(data, threshold=20):
+	"""
+	Remove outliers from dataframe according to reaction time.
+
+    Args:
+        data (DataFrame): the original data.
+		threshold (float): the exclusion criteria. (seconds)
+	
+	Returns:
+		new_data (DataFrame): the new dataFrame after outlier removal.
+    """
+	new_data = data[data['RT'] <= threshold]
+
+	return new_data
+
+def outlier_removal_error(data, std_factors=3):
+	"""
+	Remove outliers from dataframe according to error.
+
+    Args:
+        data (DataFrame): the original data.
+		std_factors (float): # of std.
+	
+	Returns:
+		new_data (DataFrame): the new dataFrame after outlier removal.
+    """
+	error_mean = np.mean(data['morphID'])
+	error_std = np.std(data['morphID'])
+	new_data = data[data['morphID'] <= error_mean + std_factors * error_std]
+	new_data = new_data[new_data['morphID'] >= error_mean - std_factors * error_std]
+
+	return new_data
+
 def save_RTfigure(morphID, RTdata, filename):
 	"""
 	Save the figure for morph response and stumulus ID
@@ -146,7 +179,7 @@ if __name__ == '__main__':
 	data = get_multiFrames(path)
 
 	### Reaction Time ### (outlier removal according to RT)
-	save_RTfigure(data['morphID'], data['RT'], 'ReactionTime.pdf')
+	save_RTfigure(data['stimulusID'], data['RT'], 'ReactionTime.pdf')
 
 	### Stimulus and Response ###
 
