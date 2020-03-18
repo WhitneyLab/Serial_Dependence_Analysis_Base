@@ -62,10 +62,10 @@ def get_multiFrames(path):
 
     dataFrames = pd.concat(data_list)
 
-    runs = list(dataFrames['blockNumber'])[-1] * subjects
+    runs = list(dataFrames['blockNumber'])[-1] * num_subjects
     trials = list(dataFrames['trialNumber'])[-1]
     TotalTrial = runs * trials
     print('Experiment Summary:')
-    print(subjects,'subject(s)\t', runs,'runs\t', trials,'trials/run\t', TotalTrial,'total trials')
+    print(num_subjects,'subject(s)\t', runs,'runs\t', trials,'trials/run\t', TotalTrial,'total trials')
 
     return dataFrames
