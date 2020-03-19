@@ -14,7 +14,7 @@ class Subject:
         self.RT_threshold = RT_threshold
         self.polyfit_order = polyfit_order
         self.stimulus_maxID = stimulus_maxID
-        
+
         self.current_stimuliDiff = []
 
     def toLinear(self):
@@ -29,7 +29,7 @@ class Subject:
         for i in range(len(self.data['stimulusID'])):
             if self.data.loc[i, 'stimulusID'] <= 0:
                 self.data.loc[i, 'stimulusID'] += self.stimulus_maxID
-            elif self.data.loc[i, 'stimulusID'] > self.stimulus_maxID: 
+            elif self.data.loc[i, 'stimulusID'] > self.stimulus_maxID:
                 self.data.loc[i, 'stimulusID'] -= self.stimulus_maxID
             else:
                 continue
@@ -38,7 +38,7 @@ class Subject:
         coefs = np.polyfit(self.data['stimulusID'], self.data['morphID'], self.polyfit_order) # polynomial coefs
         self.data['responseError'] = [y - polyFunc(x, coefs) for x,y in zip(self.data['stimulusID'],self.data['morphID'])]
         self.data['responseError'] = recenter(self.data['responseError'])
-    
+
     def getnBack_diff(self, nBack):
         differencePrevious_stimulusID = []
         differencePrevious_stimulusLoc = []
@@ -52,7 +52,7 @@ class Subject:
                 differencePrevious_stimulusLoc.append(self.data.loc[i-nBack, 'stimLocationDeg'] - self.data.loc[i, 'stimLocationDeg'])
                 filtered_y.append(self.data.loc[i, 'responseError'])
                 filter_RT.append(self.data.loc[i, 'RT'])
-        
+
         differencePrevious_stimulusID = recenter(differencePrevious_stimulusID)
         differencePrevious_stimulusLoc = recenter(differencePrevious_stimulusLoc, threshold=180)
         self.current_stimuliDiff = differencePrevious_stimulusID
@@ -69,7 +69,7 @@ class Subject:
         self.data = self.data[self.data['responseError'] <= error_mean + self.std_factors * error_std]
         self.data = self.data[self.data['responseError'] >= error_mean - self.std_factors * error_std]
         self.data = self.data.reset_index()
-    
+
     def save_RTfigure(self, filename):
         plt.figure()
         plt.rcParams["figure.figsize"] = (10,6)
@@ -79,7 +79,7 @@ class Subject:
         plt.ylabel('Reaction Time')
         plt.plot(self.data['stimulusID'], self.data['RT'], 'o', color ='orange', alpha=0.5, markersize=10)
         plt.savefig(filename, dpi=150)
-        
+
 
     def save_SRfigure(self, filename):
         plt.figure()
@@ -92,7 +92,7 @@ class Subject:
         plt.plot(self.data['stimulusID'], self.data['stimulusID'], linewidth=4, linestyle = "-", color='g', label = 'x = y')
         plt.plot(self.data['stimulusID'], self.data['morphID'], 'mo', alpha=0.5, markersize=10)
         plt.savefig(filename, dpi=150)
-    
+
     def save_Errorfigure(self, filename):
         plt.figure()
         plt.rcParams["figure.figsize"] = (10,6)
@@ -100,10 +100,12 @@ class Subject:
         plt.title('Stimulus & Response Error')
         plt.xlabel('Stimulus ID')
         plt.ylabel('Error Response')
+        plt.xlim(0, 150)
+        plt.ylim(-60, 60)
         plt.axhline(y=0, linewidth=4, linestyle = "--", color='b', label = 'y = 0' )
         plt.plot(self.data['stimulusID'], self.data['responseError'], 'mo', alpha=0.5, markersize=10)
         plt.savefig(filename, dpi=150)
-    
+
     def Extract_currentCSV(self, nBack, fileName):
         ## FileName: SubjectName_nBack_outlierRemoveornot
         ## Delete rows
@@ -132,7 +134,7 @@ def polyFunc(x, coeffs):
     # Args:
     #     x (float)
     #     coefs (List[float]): coefficients of a polynomial function. Order from high to low.
-	
+
 	# Returns:
 	# 	y (float): the polynomial function value.
 
@@ -162,31 +164,74 @@ if __name__ == "__main__":
     subject = Subject(data)
 
     subject.save_RTfigure('ReactionTime.pdf')
-    subject.save_SRfigure('RawData.pdf')
     subject.outlier_removal_RT()
+    subject.save_RTfigure('ReactionTime_OutlierRemoved.pdf')
+    subject.save_SRfigure('RawData.pdf')
 
     ### Polynomial Correction ###
     subject.toLinear()
     subject.save_SRfigure('CorrectedData.pdf')
     subject.polyCorrection()
+    subject.save_SRfigure('PolyFit.pdf') #We need to add the poly line as well as the line y=x
     subject.fromLinear()
+    subject.save_Errorfigure('ErrorResponse.pdf')
     subject.outlier_removal_error()
+    subject.save_Errorfigure('ErrorResponse_OutlierRemoved.pdf')
 
     ## Compute the stimulus difference ##
     stimuli_diff, loc_diff, filtered_responseError, filtered_RT = subject.getnBack_diff(nBack)
     subject.Extract_currentCSV(nBack, outputCSV_name)
 
-    ## Von Mise fitting ##
+    ## Von Mise fitting: Shape Similarity##
     init_vals = [25, 4]
     best_vals, covar = curve_fit(vonmise_derivative, stimuli_diff, filtered_responseError, p0=init_vals)
     print('Von Mise Parameters: amplitude {0:.4f}, Kai {1:.4f}.'.format(best_vals[0],best_vals[1]))
 
     plt.figure()
+    plt.title("Derivative Von Mises n Trials Back")
+    plt.xlabel('Morph Difference from Previous')
+    plt.ylabel('Error on Current Trial')
     plt.plot(stimuli_diff, filtered_responseError, 'co', alpha=0.5, markersize=10)
     x = np.linspace(-75, 75, 300)
     y = [vonmise_derivative(xi,best_vals[0],best_vals[1]) for xi in x]
-    plt.plot(x, y, '-', linewidth = 1)
-    plt.savefig('FittingCurve.pdf', dpi=150)
+    plt.plot(x, y, '-', linewidth = 4)
+    plt.savefig('ShapeDiff_DerivativeVonMises.pdf', dpi=150)
 
     print('Half Amplitude: {0:.4f}'.format(np.max(y)))
     print('Half Width: {0:.4f}'.format(x[np.argmax(y)]))
+
+    ## Trials back and Reaction Time for Shape##
+    plt.figure()
+    plt.title("Trials Back and Reaction Time")
+    plt.xlabel('Morph Difference from Previous')
+    plt.ylabel('RT on Current Trial')
+    plt.plot(stimuli_diff, filtered_RT, 'co', alpha=0.5, markersize=10)
+    x = np.linspace(-75, 75, 300)
+    plt.savefig('TrialsBack_RT_Shape.pdf', dpi=150)
+
+     ## Von Mise fitting: Location Similarity##
+    init_vals = [25, 4]
+    best_vals, covar = curve_fit(vonmise_derivative, loc_diff, filtered_responseError, p0=init_vals)
+    print('Von Mise Parameters: amplitude {0:.4f}, Kai {1:.4f}.'.format(best_vals[0],best_vals[1]))
+
+    plt.figure()
+    plt.title("Derivative Von Mises n Trials Back")
+    plt.xlabel('Angle Location Difference from Previous')
+    plt.ylabel('Error on Current Trial')
+    plt.plot(loc_diff, filtered_responseError, 'co', alpha=0.5, markersize=10)
+    x = np.linspace(-180, 180, 300)
+    y = [vonmise_derivative(xi,best_vals[0],best_vals[1]) for xi in x]
+    plt.plot(x, y, '-', linewidth = 4)
+    plt.savefig('LocationDiff_DerivativeVonMises.pdf', dpi=150)
+
+    print('Half Amplitude: {0:.4f}'.format(np.max(y)))
+    print('Half Width: {0:.4f}'.format(x[np.argmax(y)]))
+
+    ## Trials back and Reaction Time for Location##
+    plt.figure()
+    plt.title("Trials Back and Reaction Time")
+    plt.xlabel('Location Difference from Previous')
+    plt.ylabel('RT on Current Trial')
+    plt.plot(loc_diff, filtered_RT, 'co', alpha=0.5, markersize=10)
+    x = np.linspace(-180, 180, 300)
+    plt.savefig('TrialsBack_RT_Location.pdf', dpi=150)
