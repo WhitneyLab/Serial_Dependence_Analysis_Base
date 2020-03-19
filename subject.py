@@ -40,19 +40,24 @@ class Subject:
         self.data['responseError'] = recenter(self.data['responseError'])
     
     def getnBack_diff(self, nBack):
-        differencePrevious = []
+        differencePrevious_stimulusID = []
+        differencePrevious_stimulusLoc = []
         filtered_y = []
+        filter_RT = []
         for i in range(len(self.data['stimulusID'])):
             if self.data.loc[i, 'trialNumber'] <= nBack:
                 continue
             else:
-                differencePrevious.append(self.data.loc[i-nBack, 'stimulusID'] - self.data.loc[i, 'stimulusID'])
+                differencePrevious_stimulusID.append(self.data.loc[i-nBack, 'stimulusID'] - self.data.loc[i, 'stimulusID'])
+                differencePrevious_stimulusLoc.append(self.data.loc[i-nBack, 'stimLocationDeg'] - self.data.loc[i, 'stimLocationDeg'])
                 filtered_y.append(self.data.loc[i, 'responseError'])
+                filter_RT.append(self.data.loc[i, 'RT'])
         
-        differencePrevious = recenter(differencePrevious)
-        self.current_stimuliDiff = differencePrevious
+        differencePrevious_stimulusID = recenter(differencePrevious_stimulusID)
+        differencePrevious_stimulusLoc = recenter(differencePrevious_stimulusLoc, threshold=180)
+        self.current_stimuliDiff = differencePrevious_stimulusID
 
-        return differencePrevious, filtered_y
+        return differencePrevious_stimulusID, differencePrevious_stimulusLoc, filtered_y, filter_RT
 
     def outlier_removal_RT(self):
         self.data = self.data[self.data['RT'] <= self.RT_threshold]
@@ -69,10 +74,10 @@ class Subject:
         plt.figure()
         plt.rcParams["figure.figsize"] = (10,6)
         plt.rcParams.update({'font.size': 22})
-        plt.title('Morph ID & Reaction Time')
-        plt.xlabel('Morph ID')
+        plt.title('stimulus ID & Reaction Time')
+        plt.xlabel('stimulus ID')
         plt.ylabel('Reaction Time')
-        plt.plot(self.data['morphID'], self.data['RT'], 'o', color ='orange', alpha=0.5, markersize=10)
+        plt.plot(self.data['stimulusID'], self.data['RT'], 'o', color ='orange', alpha=0.5, markersize=10)
         plt.savefig(filename, dpi=150)
         
 
@@ -86,6 +91,17 @@ class Subject:
         plt.axhline(y=75, linewidth=4, linestyle = "--", color='b', label = 'y = 75' )
         plt.plot(self.data['stimulusID'], self.data['stimulusID'], linewidth=4, linestyle = "-", color='g', label = 'x = y')
         plt.plot(self.data['stimulusID'], self.data['morphID'], 'mo', alpha=0.5, markersize=10)
+        plt.savefig(filename, dpi=150)
+    
+    def save_Errorfigure(self, filename):
+        plt.figure()
+        plt.rcParams["figure.figsize"] = (10,6)
+        plt.rcParams.update({'font.size': 22})
+        plt.title('Stimulus & Response Error')
+        plt.xlabel('Stimulus ID')
+        plt.ylabel('Error Response')
+        plt.axhline(y=0, linewidth=4, linestyle = "--", color='b', label = 'y = 0' )
+        plt.plot(self.data['stimulusID'], self.data['responseError'], 'mo', alpha=0.5, markersize=10)
         plt.savefig(filename, dpi=150)
     
     def Extract_currentCSV(self, nBack, fileName):
@@ -157,7 +173,7 @@ if __name__ == "__main__":
     subject.outlier_removal_error()
 
     ## Compute the stimulus difference ##
-    stimuli_diff, filtered_responseError = subject.getnBack_diff(nBack)
+    stimuli_diff, loc_diff, filtered_responseError, filtered_RT = subject.getnBack_diff(nBack)
     subject.Extract_currentCSV(nBack, outputCSV_name)
 
     ## Von Mise fitting ##
