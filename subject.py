@@ -14,6 +14,8 @@ class Subject:
         self.RT_threshold = RT_threshold
         self.polyfit_order = polyfit_order
         self.stimulus_maxID = stimulus_maxID
+        
+        self.current_stimuliDiff = []
 
     def toLinear(self):
         for i in range(len(self.data['stimulusID'])):
@@ -35,6 +37,7 @@ class Subject:
     def polyCorrection(self):
         coefs = np.polyfit(self.data['stimulusID'], self.data['morphID'], self.polyfit_order) # polynomial coefs
         self.data['responseError'] = [y - polyFunc(x, coefs) for x,y in zip(self.data['stimulusID'],self.data['morphID'])]
+        self.data['responseError'] = recenter(self.data['responseError'])
     
     def getnBack_diff(self, nBack):
         differencePrevious = []
@@ -45,6 +48,9 @@ class Subject:
             else:
                 differencePrevious.append(self.data.loc[i-nBack, 'stimulusID'] - self.data.loc[i, 'stimulusID'])
                 filtered_y.append(self.data.loc[i, 'responseError'])
+        
+        differencePrevious = recenter(differencePrevious)
+        self.current_stimuliDiff = differencePrevious
 
         return differencePrevious, filtered_y
 
@@ -81,6 +87,23 @@ class Subject:
         plt.plot(self.data['stimulusID'], self.data['stimulusID'], linewidth=4, linestyle = "-", color='g', label = 'x = y')
         plt.plot(self.data['stimulusID'], self.data['morphID'], 'mo', alpha=0.5, markersize=10)
         plt.savefig(filename, dpi=150)
+    
+    def Extract_currentCSV(self, nBack, fileName):
+        ## FileName: SubjectName_nBack_outlierRemoveornot
+        ## Delete rows
+        output_data = self.data.copy(deep=True)
+
+        for i in range(nBack):
+            output_data = output_data[output_data['trialNumber'] != i + 1]
+        # output_data = output_data.reset_index()
+
+        output_data['Stim_diff'] = self.current_stimuliDiff
+        del output_data['level_0']
+        del output_data['index']
+        del output_data['blockType']
+        output_data.to_csv(fileName, index=False, header=True)
+
+
 
 def vonmise_derivative(xdata, a = 25, kai = 4):
     xdata = xdata / 75 * np.pi
@@ -116,6 +139,9 @@ if __name__ == "__main__":
     path = './' ## the folder path containing all experiment csv files
     data = get_multiFrames(path)
 
+    nBack = 1
+    outputCSV_name = 'test.csv'
+
     ### Initialize a subject ###
     subject = Subject(data)
 
@@ -131,9 +157,8 @@ if __name__ == "__main__":
     subject.outlier_removal_error()
 
     ## Compute the stimulus difference ##
-    stimuli_diff, filtered_responseError = subject.getnBack_diff(1)
-    stimuli_diff = recenter(stimuli_diff)
-    filtered_responseError = recenter(filtered_responseError)
+    stimuli_diff, filtered_responseError = subject.getnBack_diff(nBack)
+    subject.Extract_currentCSV(nBack, outputCSV_name)
 
     ## Von Mise fitting ##
     init_vals = [25, 4]

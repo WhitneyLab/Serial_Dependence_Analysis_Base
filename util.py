@@ -31,7 +31,7 @@ def read_Dataframe(path):
     
 
     ### Read useful columns mentioned above ###
-    data = pd.read_csv(path)[['stimulusID', 'morphID', 'RT', 'trialNumber', 'blockNumber', 'blockType']]
+    data = pd.read_csv(path)[['stimulusID', 'morphID', 'RT', 'trialNumber', 'blockNumber', 'blockType', 'stimLocationDeg']]
 
     ### Remove training blocks ###
     dataFrame = data[data['blockType'] != 'training']
