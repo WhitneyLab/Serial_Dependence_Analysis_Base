@@ -63,7 +63,7 @@ class Subject:
         self.data = self.data[self.data['RT'] <= self.RT_threshold]
         self.data = self.data.reset_index()
 
-    def outlier_removal_error(self):
+    def polynomial_bias_removal(self):
         error_mean = np.mean(self.data['responseError'])
         error_std = np.std(self.data['responseError'])
         self.data = self.data[self.data['responseError'] <= error_mean + self.std_factors * error_std]
@@ -174,9 +174,9 @@ if __name__ == "__main__":
     subject.polyCorrection()
     subject.save_SRfigure('PolyFit.pdf') #We need to add the poly line as well as the line y=x
     subject.fromLinear()
-    subject.save_Errorfigure('ErrorResponse.pdf')
-    subject.outlier_removal_error()
-    subject.save_Errorfigure('ErrorResponse_OutlierRemoved.pdf')
+    subject.save_Errorfigure('BiasRemoved.pdf')
+    subject.polynomial_bias_removal() ### this needs to happen before the polynomial correction
+    subject.save_Errorfigure('ErrorResponse_OutlierRemoved.pdf') ### this needs to happen before the polynomial correction
 
     ## Compute the stimulus difference ##
     stimuli_diff, loc_diff, filtered_responseError, filtered_RT = subject.getnBack_diff(nBack)
