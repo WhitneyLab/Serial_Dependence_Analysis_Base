@@ -34,6 +34,7 @@ class Subject:
             else:
                 continue
 
+    #### CHANGED BY CG - removed 3std deviation removal since we do it earier now
     def polyCorrection(self):
         coefs = np.polyfit(self.data['stimulusID'], self.data['morphID'], self.polyfit_order) # polynomial coefs
         self.data['responseError'] = [y - polyFunc(x, coefs) for x,y in zip(self.data['stimulusID'],self.data['morphID'])]
@@ -63,11 +64,16 @@ class Subject:
         self.data = self.data[self.data['RT'] <= self.RT_threshold]
         self.data = self.data.reset_index()
 
+    #### CHANGED BY CG- needed a simple function to calculate raw error
+    def error(self):
+        self.data['Error'] = [x - y for x,y in zip(self.data['stimulusID'],self.data['morphID'])]
+
+    #### CHANGED BY CG- made this based on raw error before polynomial correction
     def outlier_removal_SD(self):
-        error_mean = np.mean(self.data['responseError'])
-        error_std = np.std(self.data['responseError'])
-        self.data = self.data[self.data['responseError'] <= error_mean + self.std_factors * error_std]
-        self.data = self.data[self.data['responseError'] >= error_mean - self.std_factors * error_std]
+        error_mean = np.mean(self.data['Error'])
+        error_std = np.std(self.data['Error'])
+        self.data = self.data[self.data['Error'] <= error_mean + self.std_factors * error_std]
+        self.data = self.data[self.data['Error'] >= error_mean - self.std_factors * error_std]
         self.data = self.data.reset_index()
 
     def save_RTfigure(self, filename):
@@ -93,14 +99,45 @@ class Subject:
         plt.plot(self.data['stimulusID'], self.data['morphID'], 'mo', alpha=0.5, markersize=10)
         plt.savefig(filename, dpi=150)
 
+    #### CHANGED BY CG - made a new function to graph and display the polyfit (based on save_SRfigure)
+    def save_Polyfigure(self, filename):
+        plt.figure()
+        plt.rcParams["figure.figsize"] = (10,6)
+        plt.rcParams.update({'font.size': 22})
+        plt.title('Stimulus & Response')
+        plt.xlabel('Stimulus ID')
+        plt.ylabel('Morph Response')
+        plt.axhline(y=75, linewidth=4, linestyle = "--", color='b', label = 'y = 75' )
+        plt.plot(self.data['stimulusID'], self.data['stimulusID'], linewidth=4, linestyle = "-", color='g', label = 'x = y')
+        plt.plot(self.data['stimulusID'], self.data['morphID'], 'mo', alpha=0.5, markersize=10)
+        coefs = np.polyfit(self.data['stimulusID'], self.data['morphID'], self.polyfit_order) #### CHANGED BY CG- added
+        xarray = np.array(range(-30, 170 + 1)) #### CHANGED BY CG -added
+        PolyLine = np.polyval(coefs, xarray) #### CHANGED BY CG -added
+        plt.plot(xarray, PolyLine, label = 'poly', color = 'c', linewidth = 3) #### CHANGED BY CG -added
+        plt.savefig(filename, dpi=150)
+
     def save_Errorfigure(self, filename):
         plt.figure()
         plt.rcParams["figure.figsize"] = (10,6)
         plt.rcParams.update({'font.size': 22})
-        plt.title('Stimulus & Response Error')
+        plt.title('Stimulus &Error')
         plt.xlabel('Stimulus ID')
-        plt.ylabel('Error Response')
-        plt.xlim(0, 150)
+        plt.ylabel('Error')
+        plt.xlim(-20, 170)
+        plt.ylim(-60, 60)
+        plt.axhline(y=0, linewidth=4, linestyle = "--", color='b', label = 'y = 0' )
+        plt.plot(self.data['stimulusID'], self.data['Error'], 'mo', alpha=0.5, markersize=10)
+        plt.savefig(filename, dpi=150)
+
+    #### CHANGED BY CG - made 2 save_Errorfigures for before and after polyfit (I know this is the long way of doing it lol).
+    def save_Errorfigure2(self, filename):
+        plt.figure()
+        plt.rcParams["figure.figsize"] = (10,6)
+        plt.rcParams.update({'font.size': 22})
+        plt.title('Stimulus & Response Error after Bias Removal')
+        plt.xlabel('Stimulus ID')
+        plt.ylabel('Response Error')
+        plt.xlim(-20, 170)
         plt.ylim(-60, 60)
         plt.axhline(y=0, linewidth=4, linestyle = "--", color='b', label = 'y = 0' )
         plt.plot(self.data['stimulusID'], self.data['responseError'], 'mo', alpha=0.5, markersize=10)
@@ -120,6 +157,7 @@ class Subject:
         del output_data['index']
         del output_data['blockType']
         output_data.to_csv(fileName, index=False, header=True)
+
 
 
 
@@ -171,16 +209,39 @@ if __name__ == "__main__":
     ### Polynomial Correction ###
     subject.toLinear()
     subject.save_SRfigure('CorrectedData.pdf')
+    subject.error() #### CHANGED BY CG - added this line
+    subject.save_Errorfigure('RawError.pdf')#### CHANGED BY CG - wanted to see error before the removal
+    subject.outlier_removal_SD() #### CHANGED BY CG - moved this line here
+    subject.save_Errorfigure('ErrorResponse_OutlierRemoved.pdf') #### CHANGED BY CG - wanted to see error after SD removal
     subject.polyCorrection()
-    subject.save_SRfigure('PolyFit.pdf') #We need to add the poly line as well as the line y=x
+    subject.save_Polyfigure('PolyFit.pdf') #### CHANGED BY CG - made a new function to add in the poly line
     subject.fromLinear()
-    subject.save_Errorfigure('BiasRemoved.pdf')
-    subject.outlier_removal_SD() ### this needs to happen before the polynomial correction- needs to be modified
-    subject.save_Errorfigure('ErrorResponse_OutlierRemoved.pdf') ### this needs to happen before the polynomial correction
+    subject.save_Errorfigure2('BiasRemoved.pdf') #### CHANGED BY CG - wanted to see distribution after polyfit
 
     ## Compute the stimulus difference ##
     stimuli_diff, loc_diff, filtered_responseError, filtered_RT = subject.getnBack_diff(nBack)
     subject.Extract_currentCSV(nBack, outputCSV_name)
+
+
+    #### CHANGED BY CG - adapted running mean from old code
+    #### RUNNING MEAN ####
+    halfway =74
+    step = 8
+    RM = [None] * (2 * halfway + 1); # running mean initialization
+    xvals = list(range(-halfway, halfway + 1)) # index for running mean -90~90 + -90~90 (avoid error in sep[jj] == 91\92...
+    allx_vals = xvals + xvals
+    for ii in range(0,len(xvals) - 1): # start running mean calculation 0~180
+        if ii - step // 2 >= 0:
+            sep = allx_vals[(ii - step // 2) : (ii + step // 2 + 1)] # symmetric to avoid shift
+        else:
+            sep = allx_vals[(ii - step // 2) : len(allx_vals)] + allx_vals[0 : (ii + step // 2 + 1)]
+        sep_sum = []
+        for jj in range(0,len(sep)): # match every value in sep to every stimuli_diff point
+            for kk in range(0, len(stimuli_diff)):
+                if stimuli_diff[kk] == sep[jj]:
+                    sep_sum.insert(0, filtered_responseError[kk])
+        RM[ii] = np.mean(sep_sum)
+    RM[2 * halfway] = RM[0]
 
     ## Von Mise fitting: Shape Similarity##
     init_vals = [25, 4]
@@ -195,11 +256,28 @@ if __name__ == "__main__":
     x = np.linspace(-75, 75, 300)
     y = [vonmise_derivative(xi,best_vals[0],best_vals[1]) for xi in x]
     plt.plot(x, y, '-', linewidth = 4)
+    plt.plot(xvals, RM, label = 'Running Mean', color = 'g', linewidth = 3)
+    peak = (x[np.argmax(y)]) #### CHANGED BY CG - added to calculate where the peak is of the wave
+
+    #### CHANGED BY CG - added in regression line - didn't figure out how to restrict it for width of peaks
+    ### Regression Line - Needs to be restricted to the width of the peaks of the wave
+    #RegressionWidth = (np.logical_and(stimuli_diff > -peak+1, stimuli_diff < peak+1)) #if ALL 46
+    #ydata = filtered_responseError[RegressionWidth] #[stimuli_diff[-peak,peak]] # desired output is ['o','o','a']
+    #xdata = stimuli_diff[RegressionWidth]
+    ydata = filtered_responseError  # desired output is ['o','o','a']
+    xdata = stimuli_diff
+    m,b = np.polyfit(xdata, ydata, 1)
+    coef = np.polyfit(xdata,ydata,1)
+    poly1d_fn = np.poly1d(coef)
+    plt.plot(xdata, poly1d_fn(xdata), '--r', linewidth = 2)
+    print(m,b)
     plt.savefig('ShapeDiff_DerivativeVonMises.pdf', dpi=150)
 
     print('Half Amplitude: {0:.4f}'.format(np.max(y)))
     print('Half Width: {0:.4f}'.format(x[np.argmax(y)]))
 
+
+#### EVERYTHING AFTER THIS ISN'T SO IMPORTANT RIGHT NOW - CG ####
     ## Trials back and Reaction Time for Shape##
     plt.figure()
     plt.title("Trials Back and Reaction Time")
