@@ -14,6 +14,7 @@ class Subject:
         self.RT_threshold = RT_threshold
         self.polyfit_order = polyfit_order
         self.stimulus_maxID = stimulus_maxID
+        self.data['Error'] = [x - y for x,y in zip(self.data['stimulusID'],self.data['morphID'])]
 
         self.current_stimuliDiff = []
 
@@ -63,10 +64,6 @@ class Subject:
     def outlier_removal_RT(self):
         self.data = self.data[self.data['RT'] <= self.RT_threshold]
         self.data = self.data.reset_index()
-
-    #### CHANGED BY CG- needed a simple function to calculate raw error
-    def error(self):
-        self.data['Error'] = [x - y for x,y in zip(self.data['stimulusID'],self.data['morphID'])]
 
     #### CHANGED BY CG- made this based on raw error before polynomial correction
     def outlier_removal_SD(self):
@@ -166,16 +163,6 @@ def vonmise_derivative(xdata, a = 25, kai = 4):
     return - a / (i0(kai) * 2 * np.pi) * exp(kai * cos(xdata)) * kai * sin(xdata) # Derivative of vonmise formula
 
 def polyFunc(x, coeffs):
-
-	# Compute the value of a polynomial function given its coefficients.
-
-    # Args:
-    #     x (float)
-    #     coefs (List[float]): coefficients of a polynomial function. Order from high to low.
-
-	# Returns:
-	# 	y (float): the polynomial function value.
-
     y = 0
     order = len(coeffs)
     for i in range(order):
@@ -189,6 +176,36 @@ def recenter(x, threshold=74):
         elif x[i] < -threshold:
             x[i] = x[i] + 2 * threshold
     return x
+
+def getRunningMean(stimuxli_diff, filtered_responseError, halfway =74, step = 8):
+    RM = [None] * (2 * halfway + 1); # running mean initialization
+    xvals = list(range(-halfway, halfway + 1)) # index for running mean -90~90 + -90~90 (avoid error in sep[jj] == 91\92...
+    allx_vals = xvals + xvals
+    for ii in range(0,len(xvals) - 1): # start running mean calculation 0~180
+        if ii - step // 2 >= 0:
+            sep = allx_vals[(ii - step // 2) : (ii + step // 2 + 1)] # symmetric to avoid shift
+        else:
+            sep = allx_vals[(ii - step // 2) : len(allx_vals)] + allx_vals[0 : (ii + step // 2 + 1)]
+        sep_sum = []
+        for jj in range(0,len(sep)): # match every value in sep to every stimuli_diff point
+            for kk in range(0, len(stimuxli_diff)):
+                if stimuli_diff[kk] == sep[jj]:
+                    sep_sum.insert(0, filtered_responseError[kk])
+        RM[ii] = np.mean(sep_sum)
+    RM[2 * halfway] = RM[0]
+    return RM
+
+def getRegressionLine(stimuxli_diff, filtered_responseError, peak_x):
+    stimuxli_diff_filtered = []
+    filtered_responseError_new = []
+    for i in range(len(stimuxli_diff)):
+        if stimuxli_diff[i] < peak_x + 1 or stimuxli_diff[i] > - peak_x + 1:
+            stimuxli_diff_filtered.append(stimuxli_diff[i])
+            filtered_responseError_new.append(filtered_responseError[i])
+    coef = np.polyfit(stimuxli_diff_filtered,filtered_responseError_new,1)
+    poly1d_fn = np.poly1d(coef)
+    return poly1d_fn, coef
+
 
 if __name__ == "__main__":
     ### Read data ###
@@ -209,7 +226,6 @@ if __name__ == "__main__":
     ### Polynomial Correction ###
     subject.toLinear()
     subject.save_SRfigure('CorrectedData.pdf')
-    subject.error() #### CHANGED BY CG - added this line
     subject.save_Errorfigure('RawError.pdf')#### CHANGED BY CG - wanted to see error before the removal
     subject.outlier_removal_SD() #### CHANGED BY CG - moved this line here
     subject.save_Errorfigure('ErrorResponse_OutlierRemoved.pdf') #### CHANGED BY CG - wanted to see error after SD removal
@@ -225,23 +241,7 @@ if __name__ == "__main__":
 
     #### CHANGED BY CG - adapted running mean from old code
     #### RUNNING MEAN ####
-    halfway =74
-    step = 8
-    RM = [None] * (2 * halfway + 1); # running mean initialization
-    xvals = list(range(-halfway, halfway + 1)) # index for running mean -90~90 + -90~90 (avoid error in sep[jj] == 91\92...
-    allx_vals = xvals + xvals
-    for ii in range(0,len(xvals) - 1): # start running mean calculation 0~180
-        if ii - step // 2 >= 0:
-            sep = allx_vals[(ii - step // 2) : (ii + step // 2 + 1)] # symmetric to avoid shift
-        else:
-            sep = allx_vals[(ii - step // 2) : len(allx_vals)] + allx_vals[0 : (ii + step // 2 + 1)]
-        sep_sum = []
-        for jj in range(0,len(sep)): # match every value in sep to every stimuli_diff point
-            for kk in range(0, len(stimuli_diff)):
-                if stimuli_diff[kk] == sep[jj]:
-                    sep_sum.insert(0, filtered_responseError[kk])
-        RM[ii] = np.mean(sep_sum)
-    RM[2 * halfway] = RM[0]
+    RM = getRunningMean(stimuxli_diff, filtered_responseError)
 
     ## Von Mise fitting: Shape Similarity##
     init_vals = [25, 4]
@@ -257,20 +257,13 @@ if __name__ == "__main__":
     y = [vonmise_derivative(xi,best_vals[0],best_vals[1]) for xi in x]
     plt.plot(x, y, '-', linewidth = 4)
     plt.plot(xvals, RM, label = 'Running Mean', color = 'g', linewidth = 3)
-    peak = (x[np.argmax(y)]) #### CHANGED BY CG - added to calculate where the peak is of the wave
+    peak_x = (x[np.argmax(y)]) #### CHANGED BY CG - added to calculate where the peak is of the wave
 
-    #### CHANGED BY CG - added in regression line - didn't figure out how to restrict it for width of peaks
     ### Regression Line - Needs to be restricted to the width of the peaks of the wave
-    #RegressionWidth = (np.logical_and(stimuli_diff > -peak+1, stimuli_diff < peak+1)) #if ALL 46
-    #ydata = filtered_responseError[RegressionWidth] #[stimuli_diff[-peak,peak]] # desired output is ['o','o','a']
-    #xdata = stimuli_diff[RegressionWidth]
-    ydata = filtered_responseError  # desired output is ['o','o','a']
-    xdata = stimuli_diff
-    m,b = np.polyfit(xdata, ydata, 1)
-    coef = np.polyfit(xdata,ydata,1)
-    poly1d_fn = np.poly1d(coef)
+    poly1d_fn, coef = getRegressionLine(stimuli_diff, filtered_responseError, peak_x)
+    xdata = np.linspace(-peak_x, peak_x, 100)
     plt.plot(xdata, poly1d_fn(xdata), '--r', linewidth = 2)
-    print(m,b)
+    print(coef[0], coef[1])
     plt.savefig('ShapeDiff_DerivativeVonMises.pdf', dpi=150)
 
     print('Half Amplitude: {0:.4f}'.format(np.max(y)))
