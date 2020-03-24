@@ -35,7 +35,6 @@ class Subject:
             else:
                 continue
 
-    #### CHANGED BY CG - removed 3std deviation removal since we do it earier now
     def polyCorrection(self):
         coefs = np.polyfit(self.data['stimulusID'], self.data['morphID'], self.polyfit_order) # polynomial coefs
         self.data['responseError'] = [y - polyFunc(x, coefs) for x,y in zip(self.data['stimulusID'],self.data['morphID'])]
@@ -65,7 +64,10 @@ class Subject:
         self.data = self.data[self.data['RT'] <= self.RT_threshold]
         self.data = self.data.reset_index()
 
-    #### CHANGED BY CG- made this based on raw error before polynomial correction
+    #### CHANGED BY CG- added back in to make error removal work
+    def error(self):
+        self.data['Error'] = [x - y for x,y in zip(self.data['stimulusID'],self.data['morphID'])]
+
     def outlier_removal_SD(self):
         error_mean = np.mean(self.data['Error'])
         error_std = np.std(self.data['Error'])
@@ -96,7 +98,6 @@ class Subject:
         plt.plot(self.data['stimulusID'], self.data['morphID'], 'mo', alpha=0.5, markersize=10)
         plt.savefig(filename, dpi=150)
 
-    #### CHANGED BY CG - made a new function to graph and display the polyfit (based on save_SRfigure)
     def save_Polyfigure(self, filename):
         plt.figure()
         plt.rcParams["figure.figsize"] = (10,6)
@@ -107,10 +108,10 @@ class Subject:
         plt.axhline(y=75, linewidth=4, linestyle = "--", color='b', label = 'y = 75' )
         plt.plot(self.data['stimulusID'], self.data['stimulusID'], linewidth=4, linestyle = "-", color='g', label = 'x = y')
         plt.plot(self.data['stimulusID'], self.data['morphID'], 'mo', alpha=0.5, markersize=10)
-        coefs = np.polyfit(self.data['stimulusID'], self.data['morphID'], self.polyfit_order) #### CHANGED BY CG- added
-        xarray = np.array(range(-30, 170 + 1)) #### CHANGED BY CG -added
-        PolyLine = np.polyval(coefs, xarray) #### CHANGED BY CG -added
-        plt.plot(xarray, PolyLine, label = 'poly', color = 'c', linewidth = 3) #### CHANGED BY CG -added
+        coefs = np.polyfit(self.data['stimulusID'], self.data['morphID'], self.polyfit_order)
+        xarray = np.array(range(-30, 170 + 1))
+        PolyLine = np.polyval(coefs, xarray)
+        plt.plot(xarray, PolyLine, label = 'poly', color = 'c', linewidth = 3)
         plt.savefig(filename, dpi=150)
 
     def save_Errorfigure(self, filename):
@@ -126,7 +127,6 @@ class Subject:
         plt.plot(self.data['stimulusID'], self.data['Error'], 'mo', alpha=0.5, markersize=10)
         plt.savefig(filename, dpi=150)
 
-    #### CHANGED BY CG - made 2 save_Errorfigures for before and after polyfit (I know this is the long way of doing it lol).
     def save_Errorfigure2(self, filename):
         plt.figure()
         plt.rcParams["figure.figsize"] = (10,6)
@@ -156,8 +156,6 @@ class Subject:
         output_data.to_csv(fileName, index=False, header=True)
 
 
-
-
 def vonmise_derivative(xdata, a = 25, kai = 4):
     xdata = xdata / 75 * np.pi
     return - a / (i0(kai) * 2 * np.pi) * exp(kai * cos(xdata)) * kai * sin(xdata) # Derivative of vonmise formula
@@ -177,7 +175,7 @@ def recenter(x, threshold=74):
             x[i] = x[i] + 2 * threshold
     return x
 
-def getRunningMean(stimuxli_diff, filtered_responseError, halfway =74, step = 8):
+def getRunningMean(stimuli_diff, filtered_responseError, halfway =74, step = 8):
     RM = [None] * (2 * halfway + 1); # running mean initialization
     xvals = list(range(-halfway, halfway + 1)) # index for running mean -90~90 + -90~90 (avoid error in sep[jj] == 91\92...
     allx_vals = xvals + xvals
@@ -188,21 +186,21 @@ def getRunningMean(stimuxli_diff, filtered_responseError, halfway =74, step = 8)
             sep = allx_vals[(ii - step // 2) : len(allx_vals)] + allx_vals[0 : (ii + step // 2 + 1)]
         sep_sum = []
         for jj in range(0,len(sep)): # match every value in sep to every stimuli_diff point
-            for kk in range(0, len(stimuxli_diff)):
+            for kk in range(0, len(stimuli_diff)):
                 if stimuli_diff[kk] == sep[jj]:
                     sep_sum.insert(0, filtered_responseError[kk])
         RM[ii] = np.mean(sep_sum)
     RM[2 * halfway] = RM[0]
-    return RM
+    return RM, xvals
 
-def getRegressionLine(stimuxli_diff, filtered_responseError, peak_x):
-    stimuxli_diff_filtered = []
+def getRegressionLine(stimuli_diff, filtered_responseError, peak_x):
+    stimuli_diff_filtered = []
     filtered_responseError_new = []
-    for i in range(len(stimuxli_diff)):
-        if stimuxli_diff[i] < peak_x + 1 or stimuxli_diff[i] > - peak_x + 1:
-            stimuxli_diff_filtered.append(stimuxli_diff[i])
+    for i in range(len(stimuli_diff)):
+        if stimuli_diff[i] < peak_x + 1 or stimuli_diff[i] > - peak_x + 1:
+            stimuli_diff_filtered.append(stimuli_diff[i])
             filtered_responseError_new.append(filtered_responseError[i])
-    coef = np.polyfit(stimuxli_diff_filtered,filtered_responseError_new,1)
+    coef = np.polyfit(stimuli_diff_filtered,filtered_responseError_new,1)
     poly1d_fn = np.poly1d(coef)
     return poly1d_fn, coef
 
@@ -226,22 +224,22 @@ if __name__ == "__main__":
     ### Polynomial Correction ###
     subject.toLinear()
     subject.save_SRfigure('CorrectedData.pdf')
+    subject.error() #### CHANGED BY CG - added back in to make error removal work
     subject.save_Errorfigure('RawError.pdf')#### CHANGED BY CG - wanted to see error before the removal
     subject.outlier_removal_SD() #### CHANGED BY CG - moved this line here
     subject.save_Errorfigure('ErrorResponse_OutlierRemoved.pdf') #### CHANGED BY CG - wanted to see error after SD removal
     subject.polyCorrection()
-    subject.save_Polyfigure('PolyFit.pdf') #### CHANGED BY CG - made a new function to add in the poly line
+    subject.save_Polyfigure('PolyFit.pdf')
     subject.fromLinear()
-    subject.save_Errorfigure2('BiasRemoved.pdf') #### CHANGED BY CG - wanted to see distribution after polyfit
+    subject.save_Errorfigure2('BiasRemoved.pdf')
 
     ## Compute the stimulus difference ##
     stimuli_diff, loc_diff, filtered_responseError, filtered_RT = subject.getnBack_diff(nBack)
     subject.Extract_currentCSV(nBack, outputCSV_name)
 
 
-    #### CHANGED BY CG - adapted running mean from old code
     #### RUNNING MEAN ####
-    RM = getRunningMean(stimuxli_diff, filtered_responseError)
+    RM, xvals = getRunningMean(stimuli_diff, filtered_responseError) ####CHANGED BY CG - added xvals to items being saved
 
     ## Von Mise fitting: Shape Similarity##
     init_vals = [25, 4]
@@ -257,9 +255,9 @@ if __name__ == "__main__":
     y = [vonmise_derivative(xi,best_vals[0],best_vals[1]) for xi in x]
     plt.plot(x, y, '-', linewidth = 4)
     plt.plot(xvals, RM, label = 'Running Mean', color = 'g', linewidth = 3)
-    peak_x = (x[np.argmax(y)]) #### CHANGED BY CG - added to calculate where the peak is of the wave
+    peak_x = (x[np.argmax(y)])
 
-    ### Regression Line - Needs to be restricted to the width of the peaks of the wave
+    ### Regression Line - needs to not only be restricted in width but only influence by the points within that width
     poly1d_fn, coef = getRegressionLine(stimuli_diff, filtered_responseError, peak_x)
     xdata = np.linspace(-peak_x, peak_x, 100)
     plt.plot(xdata, poly1d_fn(xdata), '--r', linewidth = 2)
