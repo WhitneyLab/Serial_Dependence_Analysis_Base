@@ -197,7 +197,7 @@ def getRegressionLine(stimuli_diff, filtered_responseError, peak_x):
     stimuli_diff_filtered = []
     filtered_responseError_new = []
     for i in range(len(stimuli_diff)):
-        if stimuli_diff[i] < peak_x + 1 or stimuli_diff[i] > - peak_x + 1:
+        if stimuli_diff[i] < peak_x + 1 and stimuli_diff[i] > - peak_x + 1:
             stimuli_diff_filtered.append(stimuli_diff[i])
             filtered_responseError_new.append(filtered_responseError[i])
     coef = np.polyfit(stimuli_diff_filtered,filtered_responseError_new,1)
