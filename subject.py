@@ -64,7 +64,6 @@ class Subject:
         self.data = self.data[self.data['RT'] <= self.RT_threshold]
         self.data = self.data.reset_index()
 
-    #### CHANGED BY CG- added back in to make error removal work
     def error(self):
         self.data['Error'] = [x - y for x,y in zip(self.data['stimulusID'],self.data['morphID'])]
 
@@ -84,7 +83,6 @@ class Subject:
         plt.ylabel('Reaction Time')
         plt.plot(self.data['stimulusID'], self.data['RT'], 'o', color ='orange', alpha=0.5, markersize=10)
         plt.savefig(filename, dpi=150)
-
 
     def save_SRfigure(self, filename):
         plt.figure()
@@ -150,6 +148,7 @@ class Subject:
         # output_data = output_data.reset_index()
 
         output_data['Stim_diff'] = self.current_stimuliDiff
+        output_data['DoVM_values'] = DoVM_values
         del output_data['level_0']
         del output_data['index']
         del output_data['blockType']
@@ -235,7 +234,7 @@ if __name__ == "__main__":
 
     ## Compute the stimulus difference ##
     stimuli_diff, loc_diff, filtered_responseError, filtered_RT = subject.getnBack_diff(nBack)
-    subject.Extract_currentCSV(nBack, outputCSV_name)
+
 
 
     #### RUNNING MEAN ####
@@ -253,20 +252,22 @@ if __name__ == "__main__":
     plt.plot(stimuli_diff, filtered_responseError, 'co', alpha=0.5, markersize=10)
     x = np.linspace(-75, 75, 300)
     y = [vonmise_derivative(xi,best_vals[0],best_vals[1]) for xi in x]
+    DoVM_values = [vonmise_derivative(xi,best_vals[0],best_vals[1]) for xi in stimuli_diff]
     plt.plot(x, y, '-', linewidth = 4)
     plt.plot(xvals, RM, label = 'Running Mean', color = 'g', linewidth = 3)
     peak_x = (x[np.argmax(y)])
-
-    ### Regression Line - needs to not only be restricted in width but only influence by the points within that width
     poly1d_fn, coef = getRegressionLine(stimuli_diff, filtered_responseError, peak_x)
     xdata = np.linspace(-peak_x, peak_x, 100)
     plt.plot(xdata, poly1d_fn(xdata), '--r', linewidth = 2)
     print(coef[0], coef[1])
-    plt.savefig('ShapeDiff_DerivativeVonMises.pdf', dpi=150)
+    plt.savefig('ShapeDiff_DerivativeVonMises.pdf', dpi=1200)
 
     print('Half Amplitude: {0:.4f}'.format(np.max(y)))
     print('Half Width: {0:.4f}'.format(x[np.argmax(y)]))
 
+#     plt.plot(stimuli_diff, z, 'o')
+#     plt.savefig('test.pdf')
+    subject.Extract_currentCSV(nBack, outputCSV_name)
 
 #### EVERYTHING AFTER THIS ISN'T SO IMPORTANT RIGHT NOW - CG ####
     ## Trials back and Reaction Time for Shape##
