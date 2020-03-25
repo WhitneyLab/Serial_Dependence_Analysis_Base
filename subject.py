@@ -138,7 +138,10 @@ class Subject:
         plt.plot(self.data['stimulusID'], self.data['responseError'], 'mo', alpha=0.5, markersize=10)
         plt.savefig(filename, dpi=150)
 
-    def Extract_currentCSV(self, nBack, fileName):
+    def add_column(self, column_data, column_name):
+        self.data[column_name] = column_data
+
+    def Extract_currentCSV(self, nBack, DoVM_values, fileName):
         ## FileName: SubjectName_nBack_outlierRemoveornot
         ## Delete rows
         output_data = self.data.copy(deep=True)
@@ -192,13 +195,13 @@ def getRunningMean(stimuli_diff, filtered_responseError, halfway =74, step = 8):
     RM[2 * halfway] = RM[0]
     return RM, xvals
 
-def getRegressionLine(stimuli_diff, filtered_responseError, peak_x):
+def getRegressionLine(x, y, peak):
     stimuli_diff_filtered = []
     filtered_responseError_new = []
-    for i in range(len(stimuli_diff)):
-        if stimuli_diff[i] < peak_x + 1 and stimuli_diff[i] > - peak_x + 1:
-            stimuli_diff_filtered.append(stimuli_diff[i])
-            filtered_responseError_new.append(filtered_responseError[i])
+    for i in range(len(x)):
+        if x[i] < peak + 1 and x[i] > - peak + 1:
+            stimuli_diff_filtered.append(x[i])
+            filtered_responseError_new.append(y[i])
     coef = np.polyfit(stimuli_diff_filtered,filtered_responseError_new,1)
     poly1d_fn = np.poly1d(coef)
     return poly1d_fn, coef
@@ -223,10 +226,10 @@ if __name__ == "__main__":
     ### Polynomial Correction ###
     subject.toLinear()
     subject.save_SRfigure('CorrectedData.pdf')
-    subject.error() #### CHANGED BY CG - added back in to make error removal work
-    subject.save_Errorfigure('RawError.pdf')#### CHANGED BY CG - wanted to see error before the removal
-    subject.outlier_removal_SD() #### CHANGED BY CG - moved this line here
-    subject.save_Errorfigure('ErrorResponse_OutlierRemoved.pdf') #### CHANGED BY CG - wanted to see error after SD removal
+    subject.error()
+    subject.save_Errorfigure('RawError.pdf')
+    subject.outlier_removal_SD()
+    subject.save_Errorfigure('ErrorResponse_OutlierRemoved.pdf')
     subject.polyCorrection()
     subject.save_Polyfigure('PolyFit.pdf')
     subject.fromLinear()
@@ -235,10 +238,8 @@ if __name__ == "__main__":
     ## Compute the stimulus difference ##
     stimuli_diff, loc_diff, filtered_responseError, filtered_RT = subject.getnBack_diff(nBack)
 
-
-
     #### RUNNING MEAN ####
-    RM, xvals = getRunningMean(stimuli_diff, filtered_responseError) ####CHANGED BY CG - added xvals to items being saved
+    RM, xvals = getRunningMean(stimuli_diff, filtered_responseError)
 
     ## Von Mise fitting: Shape Similarity##
     init_vals = [25, 4]
@@ -256,7 +257,7 @@ if __name__ == "__main__":
     plt.plot(x, y, '-', linewidth = 4)
     plt.plot(xvals, RM, label = 'Running Mean', color = 'g', linewidth = 3)
     peak_x = (x[np.argmax(y)])
-    poly1d_fn, coef = getRegressionLine(stimuli_diff, filtered_responseError, peak_x)
+    poly1d_fn, coef = getRegressionLine(x = stimuli_diff, y= filtered_responseError, peak = peak_x)
     xdata = np.linspace(-peak_x, peak_x, 100)
     plt.plot(xdata, poly1d_fn(xdata), '--r', linewidth = 2)
     print(coef[0], coef[1])
@@ -265,11 +266,9 @@ if __name__ == "__main__":
     print('Half Amplitude: {0:.4f}'.format(np.max(y)))
     print('Half Width: {0:.4f}'.format(x[np.argmax(y)]))
 
-#     plt.plot(stimuli_diff, z, 'o')
-#     plt.savefig('test.pdf')
-    subject.Extract_currentCSV(nBack, outputCSV_name)
+    #### Extract CSV ####
+    subject.Extract_currentCSV(nBack, DoVM_values, outputCSV_name)
 
-#### EVERYTHING AFTER THIS ISN'T SO IMPORTANT RIGHT NOW - CG ####
     ## Trials back and Reaction Time for Shape##
     plt.figure()
     plt.title("Trials Back and Reaction Time")
@@ -279,7 +278,11 @@ if __name__ == "__main__":
     x = np.linspace(-75, 75, 300)
     plt.savefig('TrialsBack_RT_Shape.pdf', dpi=150)
 
-     ## Von Mise fitting: Location Similarity##
+
+    #### RUNNING MEAN ####
+    RM, xvals = getRunningMean(loc_diff, filtered_responseError, halfway =180, step = 8)
+
+    ## Von Mise fitting: Location Similarity##
     init_vals = [25, 4]
     best_vals, covar = curve_fit(vonmise_derivative, loc_diff, filtered_responseError, p0=init_vals)
     print('Von Mise Parameters: amplitude {0:.4f}, Kai {1:.4f}.'.format(best_vals[0],best_vals[1]))
@@ -291,7 +294,15 @@ if __name__ == "__main__":
     plt.plot(loc_diff, filtered_responseError, 'co', alpha=0.5, markersize=10)
     x = np.linspace(-180, 180, 300)
     y = [vonmise_derivative(xi,best_vals[0],best_vals[1]) for xi in x]
+    DoVM_values2 = [vonmise_derivative(xi,best_vals[0],best_vals[1]) for xi in loc_diff]
     plt.plot(x, y, '-', linewidth = 4)
+    plt.plot(xvals, RM, label = 'Running Mean', color = 'g', linewidth = 3)
+    peak_x = (x[np.argmax(y)])
+    #### CG Couldn't get regression line to work for location diff, that I would like to work (see commented lines below)
+#     poly1d_fn, coef = getRegressionLine(x = loc_diff, y= filtered_responseError, peak = peak_x)
+#     xdata = np.linspace(-peak_x, peak_x, 100)
+#     plt.plot(xdata, poly1d_fn(xdata), '--r', linewidth = 2)
+#     print(coef[0], coef[1])
     plt.savefig('LocationDiff_DerivativeVonMises.pdf', dpi=150)
 
     print('Half Amplitude: {0:.4f}'.format(np.max(y)))
