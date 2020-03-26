@@ -7,16 +7,71 @@ from scipy.optimize import curve_fit
 from scipy.special import i0
 from numpy import exp, sin, cos
 
+def vonmise_derivative(xdata, a = 25, kai = 4):
+    xdata = xdata / 75 * np.pi
+    return - a / (i0(kai) * 2 * np.pi) * exp(kai * cos(xdata)) * kai * sin(xdata) # Derivative of vonmise formula
+
+def polyFunc(x, coeffs):
+    y = 0
+    order = len(coeffs)
+    for i in range(order):
+        y += coeffs[i] * (x ** (order - 1 - i))
+    return y
+
+def recenter(x, threshold=74):
+    for i in range(len(x)):
+        if x[i] > threshold - 1:
+            x[i] = x[i] - 2 * threshold
+        elif x[i] < -threshold:
+            x[i] = x[i] + 2 * threshold
+    return x
+
+def getRunningMean(stimuli_diff, filtered_responseError, halfway =74, step = 8):
+    RM = [None] * (2 * halfway + 1); # running mean initialization
+    xvals = list(range(-halfway, halfway + 1)) # index for running mean -90~90 + -90~90 (avoid error in sep[jj] == 91\92...
+    allx_vals = xvals + xvals
+    for ii in range(0,len(xvals) - 1): # start running mean calculation 0~180
+        if ii - step // 2 >= 0:
+            sep = allx_vals[(ii - step // 2) : (ii + step // 2 + 1)] # symmetric to avoid shift
+        else:
+            sep = allx_vals[(ii - step // 2) : len(allx_vals)] + allx_vals[0 : (ii + step // 2 + 1)]
+        sep_sum = []
+        for jj in range(0,len(sep)): # match every value in sep to every stimuli_diff point
+            for kk in range(0, len(stimuli_diff)):
+                if stimuli_diff[kk] == sep[jj]:
+                    sep_sum.insert(0, filtered_responseError[kk])
+        RM[ii] = np.mean(sep_sum)
+    RM[2 * halfway] = RM[0]
+    return RM, xvals
+
+def getRegressionLine(x, y, peak):
+    stimuli_diff_filtered = []
+    filtered_responseError_new = []
+    for i in range(len(x)):
+        if x[i] < peak + 1 and x[i] > - peak + 1:
+            stimuli_diff_filtered.append(x[i])
+            filtered_responseError_new.append(y[i])
+    coef = np.polyfit(stimuli_diff_filtered,filtered_responseError_new,1)
+    poly1d_fn = np.poly1d(coef)
+    return poly1d_fn, coef
+
 class Subject:
-    def __init__(self, dataFrame, RT_threshold=20, std_factors=3, polyfit_order=8, stimulus_maxID=147):
+    def __init__(self, dataFrame, result_saving_path, RT_threshold=20, std_factors=3, polyfit_order=8, stimulus_maxID=147, bootstrap=True, permutation=True):
         self.data = dataFrame
         self.std_factors = std_factors
         self.RT_threshold = RT_threshold
         self.polyfit_order = polyfit_order
         self.stimulus_maxID = stimulus_maxID
+        self.result_folder = result_saving_path
+        self.bootstrap = bootstrap
+        self.bsSize = 240
+        self.bsIter = 1000
+        self.permutation = permutation
+        self.permIter = 1000
         self.data['Error'] = [x - y for x,y in zip(self.data['stimulusID'],self.data['morphID'])]
 
         self.current_stimuliDiff = []
+        self.DoVM_values = []
 
     def toLinear(self):
         for i in range(len(self.data['stimulusID'])):
@@ -82,7 +137,7 @@ class Subject:
         plt.xlabel('stimulus ID')
         plt.ylabel('Reaction Time')
         plt.plot(self.data['stimulusID'], self.data['RT'], 'o', color ='orange', alpha=0.5, markersize=10)
-        plt.savefig(filename, dpi=150)
+        plt.savefig(self.result_folder + filename, dpi=150)
 
     def save_SRfigure(self, filename):
         plt.figure()
@@ -94,7 +149,7 @@ class Subject:
         plt.axhline(y=75, linewidth=4, linestyle = "--", color='b', label = 'y = 75' )
         plt.plot(self.data['stimulusID'], self.data['stimulusID'], linewidth=4, linestyle = "-", color='g', label = 'x = y')
         plt.plot(self.data['stimulusID'], self.data['morphID'], 'mo', alpha=0.5, markersize=10)
-        plt.savefig(filename, dpi=150)
+        plt.savefig(self.result_folder + filename, dpi=150)
 
     def save_Polyfigure(self, filename):
         plt.figure()
@@ -110,7 +165,7 @@ class Subject:
         xarray = np.array(range(-30, 170 + 1))
         PolyLine = np.polyval(coefs, xarray)
         plt.plot(xarray, PolyLine, label = 'poly', color = 'c', linewidth = 3)
-        plt.savefig(filename, dpi=150)
+        plt.savefig(self.result_folder + filename, dpi=150)
 
     def save_Errorfigure(self, filename):
         plt.figure()
@@ -123,7 +178,7 @@ class Subject:
         plt.ylim(-60, 60)
         plt.axhline(y=0, linewidth=4, linestyle = "--", color='b', label = 'y = 0' )
         plt.plot(self.data['stimulusID'], self.data['Error'], 'mo', alpha=0.5, markersize=10)
-        plt.savefig(filename, dpi=150)
+        plt.savefig(self.result_folder + filename, dpi=150)
 
     def save_Errorfigure2(self, filename):
         plt.figure()
@@ -136,12 +191,12 @@ class Subject:
         plt.ylim(-60, 60)
         plt.axhline(y=0, linewidth=4, linestyle = "--", color='b', label = 'y = 0' )
         plt.plot(self.data['stimulusID'], self.data['responseError'], 'mo', alpha=0.5, markersize=10)
-        plt.savefig(filename, dpi=150)
+        plt.savefig(self.result_folder + filename, dpi=150)
 
     def add_column(self, column_data, column_name):
         self.data[column_name] = column_data
 
-    def Extract_currentCSV(self, nBack, DoVM_values, fileName):
+    def Extract_currentCSV(self, nBack, fileName):
         ## FileName: SubjectName_nBack_outlierRemoveornot
         ## Delete rows
         output_data = self.data.copy(deep=True)
@@ -151,72 +206,90 @@ class Subject:
         # output_data = output_data.reset_index()
 
         output_data['Stim_diff'] = self.current_stimuliDiff
-        output_data['DoVM_values'] = DoVM_values
+        output_data['DoVM_values'] = self.DoVM_values
         del output_data['level_0']
         del output_data['index']
         del output_data['blockType']
-        output_data.to_csv(fileName, index=False, header=True)
+        output_data.to_csv(self.result_folder + fileName, index=False, header=True)
+    
+    def CurvefitFunc(self, x, y, func=vonmise_derivative, init_vals=[25, 4]):
+        best_vals, covar = curve_fit(func, x, y, p0=init_vals)
+        return best_vals
+
+    def VonMise_fitting(self, x, y, func=vonmise_derivative, init_vals=[25, 4]):
+        best_vals = self.CurvefitFunc(x, y)
+
+        if self.bootstrap:
+            OutA = np.empty(self.bsIter) # Output a array, store each trial's a
+            for i in range(self.bsIter):
+                RandIndex = np.random.randint(len(x), size = self.bsSize) # get randi index of xdata
+                xdataNEW = [x[i] for i in RandIndex] # change xdata index
+                ydataNEW = [y[i] for i in RandIndex] # change ydata index
+                try:
+                    temp_best_vals = self.CurvefitFunc(xdataNEW,ydataNEW)
+                    OutA[i] = temp_best_vals[0]  # bootstrap make a sample * range(size) times
+                except RuntimeError:
+                    pass
+            print("bs_a:",round(np.mean(OutA),2),"	95% CI:",np.percentile(OutA,[2.5,97.5]))
+        
+        if self.permutation:
+            # perm_a, perm_b = repeate_sampling('perm', xdata, ydata, CurvefitFunc, size = permSize)
+            OutA = np.empty(self.permIter) # Output a array, store each trial's a
+            perm_xdata = x
+            for i in range(self.permIter):
+                perm_xdata = np.random.permutation(perm_xdata) # permutate nonlocal xdata to update, don't change ydata
+                temp_best_vals = self.CurvefitFunc(perm_xdata,y) # permutation make a sample * range(size) times
+                OutA[i] = temp_best_vals[0]
+            print("perm_a:",round(np.mean(OutA),2),"	90% CI:",np.percentile(OutA,[5,95]))
+
+        print('Von Mise Parameters: amplitude {0:.4f}, Kai {1:.4f}.'.format(best_vals[0],best_vals[1]))
+        return best_vals
 
 
-def vonmise_derivative(xdata, a = 25, kai = 4):
-    xdata = xdata / 75 * np.pi
-    return - a / (i0(kai) * 2 * np.pi) * exp(kai * cos(xdata)) * kai * sin(xdata) # Derivative of vonmise formula
+    def save_DerivativeVonMisesFigure(self, xlabel_name, filename, x, y, x_range, best_vals):
+        plt.figure()
+        plt.title("Derivative Von Mises n Trials Back")
+        plt.xlabel(xlabel_name)
+        plt.ylabel('Error on Current Trial')
+        plt.plot(x, y, 'co', alpha=0.5, markersize=10)
+        new_x = np.linspace(-x_range, x_range, 300)
+        new_y = [vonmise_derivative(xi,best_vals[0],best_vals[1]) for xi in new_x]
+        DoVM_values = [vonmise_derivative(xi,best_vals[0],best_vals[1]) for xi in x]
+        self.DoVM_values = DoVM_values
+        plt.plot(new_x, new_y, '-', linewidth = 4)
+        #### RUNNING MEAN ####
+        RM, xvals = getRunningMean(x, y, halfway=x_range)
+        plt.plot(xvals, RM, label = 'Running Mean', color = 'g', linewidth = 3)
+        peak_x = (new_x[np.argmax(new_y)])
+        # poly1d_fn, coef = getRegressionLine(x, y, peak_x)
+        # xdata = np.linspace(-peak_x, peak_x, 100)
+        # plt.plot(xdata, poly1d_fn(xdata), '--r', linewidth = 2)
+        # print(coef[0], coef[1])
+        plt.savefig(self.result_folder + filename, dpi=1200)
 
-def polyFunc(x, coeffs):
-    y = 0
-    order = len(coeffs)
-    for i in range(order):
-        y += coeffs[i] * (x ** (order - 1 - i))
-    return y
+        print('Half Amplitude: {0:.4f}'.format(np.max(new_y)))
+        print('Half Width: {0:.4f}'.format(new_x[np.argmax(new_y)]))
 
-def recenter(x, threshold=74):
-    for i in range(len(x)):
-        if x[i] > threshold - 1:
-            x[i] = x[i] - 2 * threshold
-        elif x[i] < -threshold:
-            x[i] = x[i] + 2 * threshold
-    return x
-
-def getRunningMean(stimuli_diff, filtered_responseError, halfway =74, step = 8):
-    RM = [None] * (2 * halfway + 1); # running mean initialization
-    xvals = list(range(-halfway, halfway + 1)) # index for running mean -90~90 + -90~90 (avoid error in sep[jj] == 91\92...
-    allx_vals = xvals + xvals
-    for ii in range(0,len(xvals) - 1): # start running mean calculation 0~180
-        if ii - step // 2 >= 0:
-            sep = allx_vals[(ii - step // 2) : (ii + step // 2 + 1)] # symmetric to avoid shift
-        else:
-            sep = allx_vals[(ii - step // 2) : len(allx_vals)] + allx_vals[0 : (ii + step // 2 + 1)]
-        sep_sum = []
-        for jj in range(0,len(sep)): # match every value in sep to every stimuli_diff point
-            for kk in range(0, len(stimuli_diff)):
-                if stimuli_diff[kk] == sep[jj]:
-                    sep_sum.insert(0, filtered_responseError[kk])
-        RM[ii] = np.mean(sep_sum)
-    RM[2 * halfway] = RM[0]
-    return RM, xvals
-
-def getRegressionLine(x, y, peak):
-    stimuli_diff_filtered = []
-    filtered_responseError_new = []
-    for i in range(len(x)):
-        if x[i] < peak + 1 and x[i] > - peak + 1:
-            stimuli_diff_filtered.append(x[i])
-            filtered_responseError_new.append(y[i])
-    coef = np.polyfit(stimuli_diff_filtered,filtered_responseError_new,1)
-    poly1d_fn = np.poly1d(coef)
-    return poly1d_fn, coef
-
+def save_TrialsBack_RT_Figure(x, y, x_range, xlabel_name, filename):
+    plt.figure()
+    plt.title("Trials Back and Reaction Time")
+    plt.xlabel(xlabel_name)
+    plt.ylabel('RT on Current Trial')
+    plt.plot(x, y, 'co', alpha=0.5, markersize=10)
+    x = np.linspace(-x_range, x_range, 300)
+    plt.savefig(filename, dpi=150)
 
 if __name__ == "__main__":
     ### Read data ###
     path = './' ## the folder path containing all experiment csv files
+    result_saving_path = './results/'
     data = get_multiFrames(path)
 
     nBack = 1
     outputCSV_name = 'test.csv'
 
     ### Initialize a subject ###
-    subject = Subject(data)
+    subject = Subject(data, result_saving_path)
 
     subject.save_RTfigure('ReactionTime.pdf')
     subject.outlier_removal_RT()
@@ -238,81 +311,19 @@ if __name__ == "__main__":
     ## Compute the stimulus difference ##
     stimuli_diff, loc_diff, filtered_responseError, filtered_RT = subject.getnBack_diff(nBack)
 
-    #### RUNNING MEAN ####
-    RM, xvals = getRunningMean(stimuli_diff, filtered_responseError)
-
     ## Von Mise fitting: Shape Similarity##
-    init_vals = [25, 4]
-    best_vals, covar = curve_fit(vonmise_derivative, stimuli_diff, filtered_responseError, p0=init_vals)
-    print('Von Mise Parameters: amplitude {0:.4f}, Kai {1:.4f}.'.format(best_vals[0],best_vals[1]))
-
-    plt.figure()
-    plt.title("Derivative Von Mises n Trials Back")
-    plt.xlabel('Morph Difference from Previous')
-    plt.ylabel('Error on Current Trial')
-    plt.plot(stimuli_diff, filtered_responseError, 'co', alpha=0.5, markersize=10)
-    x = np.linspace(-75, 75, 300)
-    y = [vonmise_derivative(xi,best_vals[0],best_vals[1]) for xi in x]
-    DoVM_values = [vonmise_derivative(xi,best_vals[0],best_vals[1]) for xi in stimuli_diff]
-    plt.plot(x, y, '-', linewidth = 4)
-    plt.plot(xvals, RM, label = 'Running Mean', color = 'g', linewidth = 3)
-    peak_x = (x[np.argmax(y)])
-    poly1d_fn, coef = getRegressionLine(x = stimuli_diff, y= filtered_responseError, peak = peak_x)
-    xdata = np.linspace(-peak_x, peak_x, 100)
-    plt.plot(xdata, poly1d_fn(xdata), '--r', linewidth = 2)
-    print(coef[0], coef[1])
-    plt.savefig('ShapeDiff_DerivativeVonMises.pdf', dpi=1200)
-
-    print('Half Amplitude: {0:.4f}'.format(np.max(y)))
-    print('Half Width: {0:.4f}'.format(x[np.argmax(y)]))
+    best_vals = subject.VonMise_fitting(stimuli_diff, filtered_responseError)
+    subject.save_DerivativeVonMisesFigure('Morph Difference from Previous', 'ShapeDiff_DerivativeVonMises.pdf', stimuli_diff, filtered_responseError, 75, best_vals)
 
     #### Extract CSV ####
-    subject.Extract_currentCSV(nBack, DoVM_values, outputCSV_name)
+    subject.Extract_currentCSV(nBack, outputCSV_name)
 
     ## Trials back and Reaction Time for Shape##
-    plt.figure()
-    plt.title("Trials Back and Reaction Time")
-    plt.xlabel('Morph Difference from Previous')
-    plt.ylabel('RT on Current Trial')
-    plt.plot(stimuli_diff, filtered_RT, 'co', alpha=0.5, markersize=10)
-    x = np.linspace(-75, 75, 300)
-    plt.savefig('TrialsBack_RT_Shape.pdf', dpi=150)
-
-
-    #### RUNNING MEAN ####
-    RM, xvals = getRunningMean(loc_diff, filtered_responseError, halfway =180, step = 8)
+    save_TrialsBack_RT_Figure(stimuli_diff, filtered_RT, 75, 'Morph Difference from Previous', result_saving_path + 'TrialsBack_RT_Shape.pdf')
 
     ## Von Mise fitting: Location Similarity##
-    init_vals = [25, 4]
-    best_vals, covar = curve_fit(vonmise_derivative, loc_diff, filtered_responseError, p0=init_vals)
-    print('Von Mise Parameters: amplitude {0:.4f}, Kai {1:.4f}.'.format(best_vals[0],best_vals[1]))
-
-    plt.figure()
-    plt.title("Derivative Von Mises n Trials Back")
-    plt.xlabel('Angle Location Difference from Previous')
-    plt.ylabel('Error on Current Trial')
-    plt.plot(loc_diff, filtered_responseError, 'co', alpha=0.5, markersize=10)
-    x = np.linspace(-180, 180, 300)
-    y = [vonmise_derivative(xi,best_vals[0],best_vals[1]) for xi in x]
-    DoVM_values2 = [vonmise_derivative(xi,best_vals[0],best_vals[1]) for xi in loc_diff]
-    plt.plot(x, y, '-', linewidth = 4)
-    plt.plot(xvals, RM, label = 'Running Mean', color = 'g', linewidth = 3)
-    peak_x = (x[np.argmax(y)])
-    #### CG Couldn't get regression line to work for location diff, that I would like to work (see commented lines below)
-#     poly1d_fn, coef = getRegressionLine(x = loc_diff, y= filtered_responseError, peak = peak_x)
-#     xdata = np.linspace(-peak_x, peak_x, 100)
-#     plt.plot(xdata, poly1d_fn(xdata), '--r', linewidth = 2)
-#     print(coef[0], coef[1])
-    plt.savefig('LocationDiff_DerivativeVonMises.pdf', dpi=150)
-
-    print('Half Amplitude: {0:.4f}'.format(np.max(y)))
-    print('Half Width: {0:.4f}'.format(x[np.argmax(y)]))
+    best_vals = subject.VonMise_fitting(loc_diff, filtered_responseError)
+    subject.save_DerivativeVonMisesFigure('Angle Location Difference from Previous', 'LocationDiff_DerivativeVonMises.pdf', loc_diff, filtered_responseError, 180, best_vals)
 
     ## Trials back and Reaction Time for Location##
-    plt.figure()
-    plt.title("Trials Back and Reaction Time")
-    plt.xlabel('Location Difference from Previous')
-    plt.ylabel('RT on Current Trial')
-    plt.plot(loc_diff, filtered_RT, 'co', alpha=0.5, markersize=10)
-    x = np.linspace(-180, 180, 300)
-    plt.savefig('TrialsBack_RT_Location.pdf', dpi=150)
+    save_TrialsBack_RT_Figure(loc_diff, filtered_RT, 180, 'Location Difference from Previous', result_saving_path + 'TrialsBack_RT_Location.pdf')
