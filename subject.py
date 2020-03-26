@@ -56,7 +56,7 @@ def getRegressionLine(x, y, peak):
     return poly1d_fn, coef
 
 class Subject:
-    def __init__(self, dataFrame, result_saving_path, RT_threshold=20, std_factors=3, polyfit_order=8, stimulus_maxID=147, bootstrap=True, permutation=True):
+    def __init__(self, dataFrame, result_saving_path, RT_threshold=20, std_factors=3, polyfit_order=10, stimulus_maxID=147, bootstrap=False, permutation=False):
         self.data = dataFrame
         self.std_factors = std_factors
         self.RT_threshold = RT_threshold
@@ -64,36 +64,23 @@ class Subject:
         self.stimulus_maxID = stimulus_maxID
         self.result_folder = result_saving_path
         self.bootstrap = bootstrap
-        self.bsSize = 240
         self.bsIter = 1000
         self.permutation = permutation
         self.permIter = 1000
-        self.data['Error'] = [x - y for x,y in zip(self.data['stimulusID'],self.data['morphID'])]
 
         self.current_stimuliDiff = []
         self.DoVM_values = []
-
-    def toLinear(self):
-        for i in range(len(self.data['stimulusID'])):
-            if abs(self.data.loc[i,'morphID'] - self.data.loc[i, 'stimulusID']) >= 80: ## threshold need to change accroding to different patterns
-                if self.data.loc[i, 'stimulusID'] < self.stimulus_maxID / 2.0:
-                    self.data.loc[i, 'stimulusID'] += self.stimulus_maxID
-                else:
-                    self.data.loc[i, 'stimulusID'] -= self.stimulus_maxID
-
-    def fromLinear(self):
-        for i in range(len(self.data['stimulusID'])):
-            if self.data.loc[i, 'stimulusID'] <= 0:
-                self.data.loc[i, 'stimulusID'] += self.stimulus_maxID
-            elif self.data.loc[i, 'stimulusID'] > self.stimulus_maxID:
-                self.data.loc[i, 'stimulusID'] -= self.stimulus_maxID
-            else:
-                continue
+        self.mean_error = 0
+        self.std_error = 0
 
     def polyCorrection(self):
         coefs = np.polyfit(self.data['stimulusID'], self.data['morphID'], self.polyfit_order) # polynomial coefs
         self.data['responseError'] = [y - polyFunc(x, coefs) for x,y in zip(self.data['stimulusID'],self.data['morphID'])]
         self.data['responseError'] = recenter(self.data['responseError'])
+    
+    def polyCorrection2(self):
+        coefs = np.polyfit(self.data['stimulusID'], self.data['Error'], self.polyfit_order) # polynomial coefs
+        self.data['responseError'] = [y - polyFunc(x, coefs) for x,y in zip(self.data['stimulusID'],self.data['Error'])]
 
     def getnBack_diff(self, nBack):
         differencePrevious_stimulusID = []
@@ -120,7 +107,12 @@ class Subject:
         self.data = self.data.reset_index()
 
     def error(self):
-        self.data['Error'] = [x - y for x,y in zip(self.data['stimulusID'],self.data['morphID'])]
+        self.data['Error'] = [y - x for x, y in zip(self.data['stimulusID'],self.data['morphID'])]
+        self.data['Error'] = recenter(self.data['Error'])
+        self.mean_error = np.mean(np.abs(self.data['Error']))
+        self.std_error = np.std(np.abs(self.data['Error']))
+        # print(self.mean_error)
+        # print(self.std_error)
 
     def outlier_removal_SD(self):
         error_mean = np.mean(self.data['Error'])
@@ -217,26 +209,33 @@ class Subject:
         return best_vals
 
     def VonMise_fitting(self, x, y, func=vonmise_derivative, init_vals=[25, 4]):
-        best_vals = self.CurvefitFunc(x, y)
+        best_vals = self.CurvefitFunc(x, y, init_vals=init_vals)
 
         if self.bootstrap:
-            OutA = np.empty(self.bsIter) # Output a array, store each trial's a
+            OutA = [] # Output a array, store each trial's a
+            bsSize = int(0.95 * len(x))
             for i in range(self.bsIter):
-                RandIndex = np.random.choice(len(x), self.bsSize, replace=False) # get randi index of xdata
+                RandIndex = np.random.choice(len(x), bsSize, replace=False) # get randi index of xdata
                 xdataNEW = [x[i] for i in RandIndex] # change xdata index
                 ydataNEW = [y[i] for i in RandIndex] # change ydata index
-                temp_best_vals = self.CurvefitFunc(xdataNEW,ydataNEW)
-                OutA[i] = temp_best_vals[0]  # bootstrap make a sample * range(size) times
+                try:
+                    temp_best_vals = self.CurvefitFunc(xdataNEW, ydataNEW, init_vals=init_vals)
+                    OutA.append(temp_best_vals[0])  # bootstrap make a sample * range(size) times
+                except RuntimeError:
+                    pass
             print("bs_a:",round(np.mean(OutA),2),"	95% CI:",np.percentile(OutA,[2.5,97.5]))
         
         if self.permutation:
             # perm_a, perm_b = repeate_sampling('perm', xdata, ydata, CurvefitFunc, size = permSize)
-            OutA = np.empty(self.permIter) # Output a array, store each trial's a
+            OutA = [] # Output a array, store each trial's a
             perm_xdata = x
             for i in range(self.permIter):
                 perm_xdata = np.random.permutation(perm_xdata) # permutate nonlocal xdata to update, don't change ydata
-                temp_best_vals = self.CurvefitFunc(perm_xdata,y) # permutation make a sample * range(size) times
-                OutA[i] = temp_best_vals[0]
+                try:
+                    temp_best_vals = self.CurvefitFunc(perm_xdata, y, init_vals=init_vals) # permutation make a sample * range(size) times
+                    OutA.append(temp_best_vals[0])
+                except RuntimeError:
+                    pass
             print("perm_a:",round(np.mean(OutA),2),"	90% CI:",np.percentile(OutA,[5,95]))
 
         print('Von Mise Parameters: amplitude {0:.4f}, Kai {1:.4f}.'.format(best_vals[0],best_vals[1]))
@@ -286,7 +285,7 @@ if __name__ == "__main__":
     outputCSV_name = 'test.csv'
 
     ### Initialize a subject ###
-    subject = Subject(data, result_saving_path)
+    subject = Subject(data, result_saving_path, bootstrap=True, permutation=True)
 
     subject.save_RTfigure('ReactionTime.pdf')
     subject.outlier_removal_RT()
@@ -294,15 +293,15 @@ if __name__ == "__main__":
     subject.save_SRfigure('RawData.pdf')
 
     ### Polynomial Correction ###
-    subject.toLinear()
-    subject.save_SRfigure('CorrectedData.pdf')
+    # subject.toLinear()
+    # subject.save_SRfigure('CorrectedData.pdf')
     subject.error()
     subject.save_Errorfigure('RawError.pdf')
     subject.outlier_removal_SD()
     subject.save_Errorfigure('ErrorResponse_OutlierRemoved.pdf')
-    subject.polyCorrection()
-    subject.save_Polyfigure('PolyFit.pdf')
-    subject.fromLinear()
+    subject.polyCorrection2()
+    # subject.save_Polyfigure('PolyFit.pdf')
+    # subject.fromLinear()
     subject.save_Errorfigure2('BiasRemoved.pdf')
 
     ## Compute the stimulus difference ##
