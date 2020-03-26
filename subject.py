@@ -73,12 +73,30 @@ class Subject:
         self.mean_error = 0
         self.std_error = 0
 
+    # def toLinear(self):
+    #     for i in range(len(self.data['stimulusID'])):
+    #         if abs(self.data.loc[i,'morphID'] - self.data.loc[i, 'stimulusID']) >= 80: ## threshold need to change accroding to different patterns
+    #             if self.data.loc[i, 'stimulusID'] < self.stimulus_maxID / 2.0:
+    #                 self.data.loc[i, 'stimulusID'] += self.stimulus_maxID
+    #             else:
+    #                 self.data.loc[i, 'stimulusID'] -= self.stimulus_maxID
+
+    # def fromLinear(self):
+    #     for i in range(len(self.data['stimulusID'])):
+    #         if self.data.loc[i, 'stimulusID'] <= 0:
+    #             self.data.loc[i, 'stimulusID'] += self.stimulus_maxID
+    #         elif self.data.loc[i, 'stimulusID'] > self.stimulus_maxID:
+    #             self.data.loc[i, 'stimulusID'] -= self.stimulus_maxID
+    #         else:
+    #             continue
+
     def polyCorrection(self):
         coefs = np.polyfit(self.data['stimulusID'], self.data['morphID'], self.polyfit_order) # polynomial coefs
         self.data['responseError'] = [y - polyFunc(x, coefs) for x,y in zip(self.data['stimulusID'],self.data['morphID'])]
-        self.data['responseError'] = recenter(self.data['responseError'])
+        temp_error = self.data['responseError'].copy()
+        self.data['responseError'] = recenter(temp_error)
     
-    def polyCorrection2(self):
+    def polyCorrection_onError(self):
         coefs = np.polyfit(self.data['stimulusID'], self.data['Error'], self.polyfit_order) # polynomial coefs
         self.data['responseError'] = [y - polyFunc(x, coefs) for x,y in zip(self.data['stimulusID'],self.data['Error'])]
 
@@ -103,23 +121,30 @@ class Subject:
         return differencePrevious_stimulusID, differencePrevious_stimulusLoc, filtered_y, filter_RT
 
     def outlier_removal_RT(self):
+        length1 = len(self.data['RT'])
         self.data = self.data[self.data['RT'] <= self.RT_threshold]
         self.data = self.data.reset_index()
+        length2 = len(self.data['RT'])
+        print('{0:d} points are removed according to Reaction Time.'.format(length1 - length2))
 
     def error(self):
         self.data['Error'] = [y - x for x, y in zip(self.data['stimulusID'],self.data['morphID'])]
-        self.data['Error'] = recenter(self.data['Error'])
+        temp_error = self.data['Error'].copy()
+        self.data['Error'] = recenter(temp_error)
         self.mean_error = np.mean(np.abs(self.data['Error']))
         self.std_error = np.std(np.abs(self.data['Error']))
         # print(self.mean_error)
         # print(self.std_error)
 
     def outlier_removal_SD(self):
+        length1 = len(self.data['Error'])
         error_mean = np.mean(self.data['Error'])
         error_std = np.std(self.data['Error'])
         self.data = self.data[self.data['Error'] <= error_mean + self.std_factors * error_std]
         self.data = self.data[self.data['Error'] >= error_mean - self.std_factors * error_std]
         self.data = self.data.reset_index()
+        length2 = len(self.data['Error'])
+        print('{0:d} points are removed according to the Error std.'.format(length1 - length2))
 
     def save_RTfigure(self, filename):
         plt.figure()
@@ -299,7 +324,7 @@ if __name__ == "__main__":
     subject.save_Errorfigure('RawError.pdf')
     subject.outlier_removal_SD()
     subject.save_Errorfigure('ErrorResponse_OutlierRemoved.pdf')
-    subject.polyCorrection2()
+    subject.polyCorrection_onError()
     # subject.save_Polyfigure('PolyFit.pdf')
     # subject.fromLinear()
     subject.save_Errorfigure2('BiasRemoved.pdf')
