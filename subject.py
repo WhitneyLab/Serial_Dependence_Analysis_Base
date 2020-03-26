@@ -222,14 +222,11 @@ class Subject:
         if self.bootstrap:
             OutA = np.empty(self.bsIter) # Output a array, store each trial's a
             for i in range(self.bsIter):
-                RandIndex = np.random.randint(len(x), size = self.bsSize) # get randi index of xdata
+                RandIndex = np.random.choice(len(x), self.bsSize, replace=False) # get randi index of xdata
                 xdataNEW = [x[i] for i in RandIndex] # change xdata index
                 ydataNEW = [y[i] for i in RandIndex] # change ydata index
-                try:
-                    temp_best_vals = self.CurvefitFunc(xdataNEW,ydataNEW)
-                    OutA[i] = temp_best_vals[0]  # bootstrap make a sample * range(size) times
-                except RuntimeError:
-                    pass
+                temp_best_vals = self.CurvefitFunc(xdataNEW,ydataNEW)
+                OutA[i] = temp_best_vals[0]  # bootstrap make a sample * range(size) times
             print("bs_a:",round(np.mean(OutA),2),"	95% CI:",np.percentile(OutA,[2.5,97.5]))
         
         if self.permutation:
