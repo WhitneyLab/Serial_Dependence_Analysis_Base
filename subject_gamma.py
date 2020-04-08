@@ -232,28 +232,28 @@ class Subject:
         del output_data['blockType']
         output_data.to_csv(self.result_folder + fileName, index=False, header=True)
     
-    def CurvefitFunc(self, x, y, func=Gamma, init_vals=[20, 3, 0.5]):
+    def CurvefitFunc(self, x, y, func=Gamma, init_vals=[20, 3, 0.5], bounds_input = ([0,0,0.5],[200,3,np.inf])):
         new_x = x.copy()
         new_y = y.copy()
         for i, xi in enumerate(new_x):
             if xi < 0:
                 new_x[i] = - new_x[i]
                 new_y[i] = - new_y[i]
-        best_vals, covar = curve_fit(func, new_x, new_y, p0=init_vals)
+        best_vals, covar = curve_fit(func, new_x, new_y, p0=init_vals, bounds = bounds_input)
         return best_vals
 
-    def Gamma_fitting(self, x, y, func=Gamma, init_vals=[20, 3, 0.5]):
+    def Gamma_fitting(self, x, y, func=Gamma, init_vals=[20, 3, 0.5], bounds_input = ([0,0,0.5],[200,3,np.inf])):
         best_vals = self.CurvefitFunc(x, y, init_vals=init_vals)
 
         if self.bootstrap:
             OutA = [] # Output a array, store each trial's a
-            bsSize = int(0.95 * len(x))
+            bsSize = int(1.0 * len(x))
             for i in range(self.bsIter):
-                RandIndex = np.random.choice(len(x), bsSize, replace=False) # get randi index of xdata
+                RandIndex = np.random.choice(len(x), bsSize, replace=True) # get randi index of xdata
                 xdataNEW = [x[i] for i in RandIndex] # change xdata index
                 ydataNEW = [y[i] for i in RandIndex] # change ydata index
                 try:
-                    temp_best_vals = self.CurvefitFunc(xdataNEW, ydataNEW, init_vals=init_vals)
+                    temp_best_vals = self.CurvefitFunc(xdataNEW, ydataNEW, init_vals=init_vals, bounds_input=bounds_input)
                     OutA.append(temp_best_vals[0])  # bootstrap make a sample * range(size) times
                 except RuntimeError:
                     pass
@@ -266,7 +266,7 @@ class Subject:
             for i in range(self.permIter):
                 perm_xdata = np.random.permutation(perm_xdata) # permutate nonlocal xdata to update, don't change ydata
                 try:
-                    temp_best_vals = self.CurvefitFunc(perm_xdata, y, init_vals=init_vals) # permutation make a sample * range(size) times
+                    temp_best_vals = self.CurvefitFunc(perm_xdata, y, init_vals=init_vals, bounds_input=bounds_input) # permutation make a sample * range(size) times
                     OutA.append(temp_best_vals[0])
                 except RuntimeError:
                     pass
@@ -324,7 +324,7 @@ if __name__ == "__main__":
     result_saving_path = './results/'
     data = get_multiFrames(path)
 
-    nBack = 1
+    nBack = 2
     outputCSV_name = 'test.csv'
 
     ### Initialize a subject ###

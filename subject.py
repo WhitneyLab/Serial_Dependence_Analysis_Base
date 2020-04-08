@@ -8,7 +8,7 @@ from scipy.special import i0, gamma
 from numpy import exp, sin, cos
 
 def vonmise_derivative(xdata, a = 25, kai = 4):
-    xdata = xdata / 75 * np.pi
+    xdata = xdata / 180 * np.pi
     return - a / (i0(kai) * 2 * np.pi) * exp(kai * cos(xdata)) * kai * sin(xdata) # Derivative of vonmise formula
 
 def Gamma(xdata, a, alpha, beta):
@@ -236,14 +236,14 @@ class Subject:
         best_vals, covar = curve_fit(func, x, y, p0=init_vals)
         return best_vals
 
-    def VonMise_fitting(self, x, y, func=vonmise_derivative, init_vals=[25, 4]):
+    def VonMise_fitting(self, x, y, func=vonmise_derivative, init_vals=[10, 8]):
         best_vals = self.CurvefitFunc(x, y, init_vals=init_vals)
 
         if self.bootstrap:
             OutA = [] # Output a array, store each trial's a
-            bsSize = int(0.95 * len(x))
+            bsSize = int(1.0 * len(x))
             for i in range(self.bsIter):
-                RandIndex = np.random.choice(len(x), bsSize, replace=False) # get randi index of xdata
+                RandIndex = np.random.choice(len(x), bsSize, replace=True) # get randi index of xdata
                 xdataNEW = [x[i] for i in RandIndex] # change xdata index
                 ydataNEW = [y[i] for i in RandIndex] # change ydata index
                 try:
@@ -309,7 +309,7 @@ if __name__ == "__main__":
     result_saving_path = './results/'
     data = get_multiFrames(path)
 
-    nBack = 1
+    nBack = 2
     outputCSV_name = 'test.csv'
 
     ### Initialize a subject ###
@@ -335,12 +335,12 @@ if __name__ == "__main__":
     ## Compute the stimulus difference ##
     stimuli_diff, loc_diff, filtered_responseError, filtered_RT = subject.getnBack_diff(nBack)
 
-    ## Von Mise fitting: Shape Similarity##
-    best_vals = subject.VonMise_fitting(stimuli_diff, filtered_responseError)
-    subject.save_DerivativeVonMisesFigure('Morph Difference from Previous', 'ShapeDiff_DerivativeVonMises.pdf', stimuli_diff, filtered_responseError, 75, best_vals)
+    # ## Von Mise fitting: Shape Similarity##
+    # best_vals = subject.VonMise_fitting(stimuli_diff, filtered_responseError)
+    # subject.save_DerivativeVonMisesFigure('Morph Difference from Previous', 'ShapeDiff_DerivativeVonMises.pdf', stimuli_diff, filtered_responseError, 75, best_vals)
 
-    #### Extract CSV ####
-    subject.Extract_currentCSV(nBack, outputCSV_name)
+    # #### Extract CSV ####
+    # subject.Extract_currentCSV(nBack, outputCSV_name)
 
     ## Trials back and Reaction Time for Shape##
     save_TrialsBack_RT_Figure(stimuli_diff, filtered_RT, 75, 'Morph Difference from Previous', result_saving_path + 'TrialsBack_RT_Shape.pdf')
