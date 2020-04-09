@@ -232,11 +232,11 @@ class Subject:
         del output_data['blockType']
         output_data.to_csv(self.result_folder + fileName, index=False, header=True)
     
-    def CurvefitFunc(self, x, y, func=vonmise_derivative, init_vals=[25, 4]):
-        best_vals, covar = curve_fit(func, x, y, p0=init_vals)
+    def CurvefitFunc(self, x, y, func=vonmise_derivative, init_vals=[25, 4], bounds_input = ([-60,2],[0,np.inf])):
+        best_vals, covar = curve_fit(func, x, y, p0=init_vals, bounds = bounds_input)
         return best_vals
 
-    def VonMise_fitting(self, x, y, func=vonmise_derivative, init_vals=[10, 8]):
+    def VonMise_fitting(self, x, y, func=vonmise_derivative, init_vals=[10, 8],  bounds_input = ([-60,2],[0,np.inf])):
         best_vals = self.CurvefitFunc(x, y, init_vals=init_vals)
 
         if self.bootstrap:
@@ -247,7 +247,7 @@ class Subject:
                 xdataNEW = [x[i] for i in RandIndex] # change xdata index
                 ydataNEW = [y[i] for i in RandIndex] # change ydata index
                 try:
-                    temp_best_vals = self.CurvefitFunc(xdataNEW, ydataNEW, init_vals=init_vals)
+                    temp_best_vals = self.CurvefitFunc(xdataNEW, ydataNEW, init_vals=init_vals, bounds_input=bounds_input)
                     OutA.append(temp_best_vals[0])  # bootstrap make a sample * range(size) times
                 except RuntimeError:
                     pass
@@ -260,7 +260,7 @@ class Subject:
             for i in range(self.permIter):
                 perm_xdata = np.random.permutation(perm_xdata) # permutate nonlocal xdata to update, don't change ydata
                 try:
-                    temp_best_vals = self.CurvefitFunc(perm_xdata, y, init_vals=init_vals) # permutation make a sample * range(size) times
+                    temp_best_vals = self.CurvefitFunc(perm_xdata, y, init_vals=init_vals, bounds_input=bounds_input) # permutation make a sample * range(size) times
                     OutA.append(temp_best_vals[0])
                 except RuntimeError:
                     pass
