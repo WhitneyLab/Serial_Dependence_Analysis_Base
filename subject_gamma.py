@@ -7,7 +7,7 @@ from scipy.optimize import curve_fit
 from scipy.special import i0, gamma
 from numpy import exp, sin, cos
 
-def vonmise_derivative(xdata, a = 25, kai = 4):
+def vonmise_derivative(xdata, a, kai):
     xdata = xdata / 75 * np.pi
     return - a / (i0(kai) * 2 * np.pi) * exp(kai * cos(xdata)) * kai * sin(xdata) # Derivative of vonmise formula
 
@@ -243,7 +243,7 @@ class Subject:
         return best_vals
 
     def Gamma_fitting(self, x, y, func=Gamma, init_vals=[20, 3, 0.5], bounds_input = ([0,0,0.5],[200,3,np.inf])):
-        best_vals = self.CurvefitFunc(x, y, init_vals=init_vals)
+        best_vals = self.CurvefitFunc(x, y, init_vals=init_vals, bounds_input = bounds_input)
 
         if self.bootstrap:
             OutA = [] # Output a array, store each trial's a
