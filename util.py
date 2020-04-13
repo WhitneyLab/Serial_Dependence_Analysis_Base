@@ -68,4 +68,4 @@ def get_multiFrames(path):
     print('Experiment Summary:')
     print(num_subjects,'subject(s)\t', runs,'runs\t', trials,'trials/run\t', TotalTrial,'total trials')
 
-    return dataFrames
+    return dataFrames, data_list, filenameList

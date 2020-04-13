@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import os
 import matplotlib.pyplot as plt
 from util import get_multiFrames
 
@@ -13,6 +14,9 @@ def vonmise_derivative(xdata, a, kai):
 
 def Gamma(xdata, a, alpha, beta):
     return a * np.power(beta, alpha) * np.power(xdata, alpha - 1) * exp(-beta * xdata) / gamma(alpha)
+
+def DoG(x, amplitude, sigma2):
+    return - amplitude * x / (sigma2 ** 1.5 * np.sqrt(2 * np.pi)) * exp(- x ** 2 / (2 * sigma2))
 
 def polyFunc(x, coeffs):
     y = 0
@@ -72,7 +76,7 @@ class Subject:
         self.permIter = 1000
 
         self.current_stimuliDiff = []
-        self.DoVM_values = []
+        self.DoG_values = []
         self.mean_error = 0
         self.std_error = 0
 
@@ -158,6 +162,7 @@ class Subject:
         plt.ylabel('Reaction Time')
         plt.plot(self.data['stimulusID'], self.data['RT'], 'o', color ='orange', alpha=0.5, markersize=10)
         plt.savefig(self.result_folder + filename, dpi=150)
+        plt.close()
 
     def save_SRfigure(self, filename):
         plt.figure()
@@ -170,6 +175,7 @@ class Subject:
         plt.plot(self.data['stimulusID'], self.data['stimulusID'], linewidth=4, linestyle = "-", color='g', label = 'x = y')
         plt.plot(self.data['stimulusID'], self.data['morphID'], 'mo', alpha=0.5, markersize=10)
         plt.savefig(self.result_folder + filename, dpi=150)
+        plt.close()
 
     def save_Polyfigure(self, filename):
         plt.figure()
@@ -186,6 +192,7 @@ class Subject:
         PolyLine = np.polyval(coefs, xarray)
         plt.plot(xarray, PolyLine, label = 'poly', color = 'c', linewidth = 3)
         plt.savefig(self.result_folder + filename, dpi=150)
+        plt.close()
 
     def save_Errorfigure(self, filename):
         plt.figure()
@@ -199,6 +206,7 @@ class Subject:
         plt.axhline(y=0, linewidth=4, linestyle = "--", color='b', label = 'y = 0' )
         plt.plot(self.data['stimulusID'], self.data['Error'], 'mo', alpha=0.5, markersize=10)
         plt.savefig(self.result_folder + filename, dpi=150)
+        plt.close()
 
     def save_Errorfigure2(self, filename):
         plt.figure()
@@ -212,6 +220,7 @@ class Subject:
         plt.axhline(y=0, linewidth=4, linestyle = "--", color='b', label = 'y = 0' )
         plt.plot(self.data['stimulusID'], self.data['responseError'], 'mo', alpha=0.5, markersize=10)
         plt.savefig(self.result_folder + filename, dpi=150)
+        plt.close()
 
     def add_column(self, column_data, column_name):
         self.data[column_name] = column_data
@@ -226,17 +235,17 @@ class Subject:
         # output_data = output_data.reset_index()
 
         output_data['Stim_diff'] = self.current_stimuliDiff
-        output_data['DoVM_values'] = self.DoVM_values
+        output_data['DoG_values'] = self.DoG_values
         del output_data['level_0']
         del output_data['index']
         del output_data['blockType']
         output_data.to_csv(self.result_folder + fileName, index=False, header=True)
     
-    def CurvefitFunc(self, x, y, func=vonmise_derivative, init_vals=[-25, 4], bounds_input = ([-60,2],[0,np.inf])):
+    def CurvefitFunc(self, x, y, func=DoG, init_vals=[-20, 10], bounds_input = ([-np.inf,0],[0,40])):
         best_vals, covar = curve_fit(func, x, y, p0=init_vals, bounds = bounds_input)
         return best_vals
 
-    def VonMise_fitting(self, x, y, func=vonmise_derivative, init_vals=[-25, 4],  bounds_input = ([-60,2],[0,np.inf])):
+    def VonMise_fitting(self, x, y, func=DoG, init_vals=[-20, 10],  bounds_input = ([-np.inf,0],[0,40])):
         best_vals = self.CurvefitFunc(x, y, init_vals=init_vals, bounds_input = bounds_input)
 
         if self.bootstrap:
@@ -252,6 +261,7 @@ class Subject:
                 except RuntimeError:
                     pass
             print("bs_a:",round(np.mean(OutA),2),"	95% CI:",np.percentile(OutA,[2.5,97.5]))
+            np.save(self.result_folder + 'bootstrap.npy', OutA)
         
         if self.permutation:
             # perm_a, perm_b = repeate_sampling('perm', xdata, ydata, CurvefitFunc, size = permSize)
@@ -266,20 +276,20 @@ class Subject:
                     pass
             print("perm_a:",round(np.mean(OutA),2),"	90% CI:",np.percentile(OutA,[5,95]))
 
-        print('Von Mise Parameters: amplitude {0:.4f}, Kai {1:.4f}.'.format(best_vals[0],best_vals[1]))
+        print('Gaussian Parameters: amplitude {0:.4f}, Sigma2 {1:.4f}.'.format(best_vals[0],best_vals[1]))
         return best_vals
 
 
     def save_DerivativeVonMisesFigure(self, xlabel_name, filename, x, y, x_range, best_vals):
         plt.figure()
-        plt.title("Derivative Von Mises n Trials Back")
+        plt.title("Derivative Gaussian n Trials Back")
         plt.xlabel(xlabel_name)
         plt.ylabel('Error on Current Trial')
         plt.plot(x, y, 'co', alpha=0.5, markersize=10)
         new_x = np.linspace(-x_range, x_range, 300)
-        new_y = [vonmise_derivative(xi,best_vals[0],best_vals[1]) for xi in new_x]
-        DoVM_values = [vonmise_derivative(xi,best_vals[0],best_vals[1]) for xi in x]
-        self.DoVM_values = DoVM_values
+        new_y = [DoG(xi,best_vals[0],best_vals[1]) for xi in new_x]
+        DoG_values = [DoG(xi,best_vals[0],best_vals[1]) for xi in x]
+        self.DoG_values = DoG_values
         plt.plot(new_x, new_y, '-', linewidth = 4)
         #### RUNNING MEAN ####
         RM, xvals = getRunningMean(x, y, halfway=x_range)
@@ -290,6 +300,7 @@ class Subject:
         # plt.plot(xdata, poly1d_fn(xdata), '--r', linewidth = 2)
         # print(coef[0], coef[1])
         plt.savefig(self.result_folder + filename, dpi=1200)
+        plt.close()
 
         print('Half Amplitude: {0:.4f}'.format(np.max(new_y)))
         print('Half Width: {0:.4f}'.format(new_x[np.argmax(new_y)]))
@@ -302,52 +313,65 @@ def save_TrialsBack_RT_Figure(x, y, x_range, xlabel_name, filename):
     plt.plot(x, y, 'co', alpha=0.5, markersize=10)
     x = np.linspace(-x_range, x_range, 300)
     plt.savefig(filename, dpi=150)
+    plt.close()
 
 if __name__ == "__main__":
     ### Read data ###
     path = './' ## the folder path containing all experiment csv files
-    result_saving_path = './results/'
-    data = get_multiFrames(path)
+    data, dataList, subjectList = get_multiFrames(path)
+    os.mkdir('./DoG/')
 
-    nBack = 2
-    outputCSV_name = 'test.csv'
+    ## Loop through every subjects ##
+    for i in range(len(dataList)):
 
-    ### Initialize a subject ###
-    subject = Subject(data, result_saving_path, bootstrap=True, permutation=True)
+        temp_filename, _ = os.path.splitext(subjectList[i])
+        result_saving_path = './DoG/' + temp_filename + '/'
+        os.mkdir(result_saving_path)
 
-    subject.save_RTfigure('ReactionTime.pdf')
-    subject.outlier_removal_RT()
-    subject.save_RTfigure('ReactionTime_OutlierRemoved.pdf')
-    subject.save_SRfigure('RawData.pdf')
+        ## Loop through every trial back up to 3 ##
+        for j in range(3):
 
-    ### Polynomial Correction ###
-    # subject.toLinear()
-    # subject.save_SRfigure('CorrectedData.pdf')
-    subject.error()
-    subject.save_Errorfigure('RawError.pdf')
-    subject.outlier_removal_SD()
-    subject.save_Errorfigure('ErrorResponse_OutlierRemoved.pdf')
-    subject.polyCorrection_onError()
-    # subject.save_Polyfigure('PolyFit.pdf')
-    # subject.fromLinear()
-    subject.save_Errorfigure2('BiasRemoved.pdf')
+            nBack = j + 1
+            result_saving_path_sub = result_saving_path + str(nBack) + '/'
+            os.mkdir(result_saving_path_sub)
+            outputCSV_name = 'test.csv'
 
-    ## Compute the stimulus difference ##
-    stimuli_diff, loc_diff, filtered_responseError, filtered_RT = subject.getnBack_diff(nBack)
+            ### Initialize a subject ###
+            subject = Subject(data, result_saving_path_sub, bootstrap=True, permutation=True)
 
-    # ## Von Mise fitting: Shape Similarity##
-    best_vals = subject.VonMise_fitting(stimuli_diff, filtered_responseError)
-    subject.save_DerivativeVonMisesFigure('Morph Difference from Previous', 'ShapeDiff_DerivativeVonMises.pdf', stimuli_diff, filtered_responseError, 75, best_vals)
+            subject.save_RTfigure('ReactionTime.pdf')
+            subject.outlier_removal_RT()
+            subject.save_RTfigure('ReactionTime_OutlierRemoved.pdf')
+            subject.save_SRfigure('RawData.pdf')
 
-    # #### Extract CSV ####
-    # subject.Extract_currentCSV(nBack, outputCSV_name)
+            ### Polynomial Correction ###
+            # subject.toLinear()
+            # subject.save_SRfigure('CorrectedData.pdf')
+            subject.error()
+            subject.save_Errorfigure('RawError.pdf')
+            subject.outlier_removal_SD()
+            subject.save_Errorfigure('ErrorResponse_OutlierRemoved.pdf')
+            subject.polyCorrection_onError()
+            # subject.save_Polyfigure('PolyFit.pdf')
+            # subject.fromLinear()
+            subject.save_Errorfigure2('BiasRemoved.pdf')
 
-    ## Trials back and Reaction Time for Shape##
-    # save_TrialsBack_RT_Figure(stimuli_diff, filtered_RT, 75, 'Morph Difference from Previous', result_saving_path + 'TrialsBack_RT_Shape.pdf')
+            ## Compute the stimulus difference ##
+            stimuli_diff, loc_diff, filtered_responseError, filtered_RT = subject.getnBack_diff(nBack)
 
-    ## Von Mise fitting: Location Similarity##
-    # best_vals = subject.VonMise_fitting(loc_diff, filtered_responseError)
-    # subject.save_DerivativeVonMisesFigure('Angle Location Difference from Previous', 'LocationDiff_DerivativeVonMises.pdf', loc_diff, filtered_responseError, 180, best_vals)
+            # ## Von Mise fitting: Shape Similarity##
+            best_vals = subject.VonMise_fitting(stimuli_diff, filtered_responseError)
+            subject.save_DerivativeVonMisesFigure('Morph Difference from Previous', 'ShapeDiff_DerivativeVonMises.pdf', stimuli_diff, filtered_responseError, 75, best_vals)
 
-    ## Trials back and Reaction Time for Location##
-    # save_TrialsBack_RT_Figure(loc_diff, filtered_RT, 180, 'Location Difference from Previous', result_saving_path + 'TrialsBack_RT_Location.pdf')
+            #### Extract CSV ####
+            subject.Extract_currentCSV(nBack, outputCSV_name)
+
+            ## Trials back and Reaction Time for Shape##
+            # save_TrialsBack_RT_Figure(stimuli_diff, filtered_RT, 75, 'Morph Difference from Previous', result_saving_path + 'TrialsBack_RT_Shape.pdf')
+
+            ## Von Mise fitting: Location Similarity##
+            # best_vals = subject.VonMise_fitting(loc_diff, filtered_responseError)
+            # subject.save_DerivativeVonMisesFigure('Angle Location Difference from Previous', 'LocationDiff_DerivativeVonMises.pdf', loc_diff, filtered_responseError, 180, best_vals)
+
+            ## Trials back and Reaction Time for Location##
+            # save_TrialsBack_RT_Figure(loc_diff, filtered_RT, 180, 'Location Difference from Previous', result_saving_path + 'TrialsBack_RT_Location.pdf')

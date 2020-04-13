@@ -73,7 +73,7 @@ class Subject:
         self.permIter = 1000
 
         self.current_stimuliDiff = []
-        self.Gamma_values = []
+        self.DoVM_values = []
         self.mean_error = 0
         self.std_error = 0
 
@@ -232,23 +232,17 @@ class Subject:
         # output_data = output_data.reset_index()
 
         output_data['Stim_diff'] = self.current_stimuliDiff
-        output_data['Gamma_values'] = self.Gamma_values
+        output_data['DoVM_values'] = self.DoVM_values
         del output_data['level_0']
         del output_data['index']
         del output_data['blockType']
         output_data.to_csv(self.result_folder + fileName, index=False, header=True)
     
-    def CurvefitFunc(self, x, y, func=Gamma, init_vals=[20, 3, 0.5], bounds_input = ([0,0,0.5],[200,3,np.inf])):
-        new_x = x.copy()
-        new_y = y.copy()
-        for i, xi in enumerate(new_x):
-            if xi < 0:
-                new_x[i] = - new_x[i]
-                new_y[i] = - new_y[i]
-        best_vals, covar = curve_fit(func, new_x, new_y, p0=init_vals, bounds = bounds_input)
+    def CurvefitFunc(self, x, y, func=vonmise_derivative, init_vals=[-25, 4], bounds_input = ([-60,2],[0,np.inf])):
+        best_vals, covar = curve_fit(func, x, y, p0=init_vals, bounds = bounds_input)
         return best_vals
 
-    def Gamma_fitting(self, x, y, func=Gamma, init_vals=[20, 3, 0.5], bounds_input = ([0,1,0.5],[200,3,np.inf])):
+    def VonMise_fitting(self, x, y, func=vonmise_derivative, init_vals=[-25, 4],  bounds_input = ([-60,2],[0,np.inf])):
         best_vals = self.CurvefitFunc(x, y, init_vals=init_vals, bounds_input = bounds_input)
 
         if self.bootstrap:
@@ -282,29 +276,20 @@ class Subject:
         return best_vals
 
 
-    def save_GammaFigure(self, xlabel_name, filename, x, y, x_range, best_vals):
+    def save_DerivativeVonMisesFigure(self, xlabel_name, filename, x, y, x_range, best_vals):
         plt.figure()
-        plt.plot(x, y, 'bo', alpha=0.5, markersize=10)
-        for i, xi in enumerate(x):
-            if xi < 0:
-                x[i] = - x[i]
-                y[i] = - y[i]
-        plt.plot(x, y, 'ro', alpha=0.5, markersize=5)
-        plt.savefig(self.result_folder + 'Test.pdf', dpi=1200)
-
-        plt.figure()
-        plt.title("Gamma n Trials Back")
+        plt.title("Derivative Von Mises n Trials Back")
         plt.xlabel(xlabel_name)
         plt.ylabel('Error on Current Trial')
         plt.plot(x, y, 'co', alpha=0.5, markersize=10)
-        new_x = np.linspace(0, x_range, 300)
-        new_y = [Gamma(xi,best_vals[0],best_vals[1],best_vals[2]) for xi in new_x]
-        Gamma_values = [Gamma(xi,best_vals[0],best_vals[1],best_vals[2]) for xi in x]
-        self.Gamma_values = Gamma_values
+        new_x = np.linspace(-x_range, x_range, 300)
+        new_y = [vonmise_derivative(xi,best_vals[0],best_vals[1]) for xi in new_x]
+        DoVM_values = [vonmise_derivative(xi,best_vals[0],best_vals[1]) for xi in x]
+        self.DoVM_values = DoVM_values
         plt.plot(new_x, new_y, '-', linewidth = 4)
         #### RUNNING MEAN ####
-        # RM, xvals = getRunningMean(x, y, halfway=x_range)
-        # plt.plot(xvals, RM, label = 'Running Mean', color = 'g', linewidth = 3)
+        RM, xvals = getRunningMean(x, y, halfway=x_range)
+        plt.plot(xvals, RM, label = 'Running Mean', color = 'g', linewidth = 3)
         peak_x = (new_x[np.argmax(new_y)])
         # poly1d_fn, coef = getRegressionLine(x, y, peak_x)
         # xdata = np.linspace(-peak_x, peak_x, 100)
@@ -330,17 +315,18 @@ if __name__ == "__main__":
     ### Read data ###
     path = './' ## the folder path containing all experiment csv files
     data, dataList, subjectList = get_multiFrames(path)
-    os.mkdir('./Gamma/')
+    os.mkdir('./VonMise/')
 
     ## Loop through every subjects ##
     for i in range(len(dataList)):
 
         temp_filename, _ = os.path.splitext(subjectList[i])
-        result_saving_path = './Gamma/' + temp_filename + '/'
+        result_saving_path = './VonMise/' + temp_filename + '/'
         os.mkdir(result_saving_path)
 
         ## Loop through every trial back up to 3 ##
         for j in range(3):
+
             nBack = j + 1
             result_saving_path_sub = result_saving_path + str(nBack) + '/'
             os.mkdir(result_saving_path_sub)
@@ -369,19 +355,19 @@ if __name__ == "__main__":
             ## Compute the stimulus difference ##
             stimuli_diff, loc_diff, filtered_responseError, filtered_RT = subject.getnBack_diff(nBack)
 
-            ## Von Mise fitting: Shape Similarity##
-            best_vals = subject.Gamma_fitting(stimuli_diff, filtered_responseError)
-            subject.save_GammaFigure('Morph Difference from Previous', 'ShapeDiff_DerivativeVonMises.pdf', stimuli_diff, filtered_responseError, 75, best_vals)
+            # ## Von Mise fitting: Shape Similarity##
+            best_vals = subject.VonMise_fitting(stimuli_diff, filtered_responseError)
+            subject.save_DerivativeVonMisesFigure('Morph Difference from Previous', 'ShapeDiff_DerivativeVonMises.pdf', stimuli_diff, filtered_responseError, 75, best_vals)
 
             #### Extract CSV ####
             subject.Extract_currentCSV(nBack, outputCSV_name)
 
-            # ## Trials back and Reaction Time for Shape##
+            ## Trials back and Reaction Time for Shape##
             # save_TrialsBack_RT_Figure(stimuli_diff, filtered_RT, 75, 'Morph Difference from Previous', result_saving_path + 'TrialsBack_RT_Shape.pdf')
 
-            # ## Von Mise fitting: Location Similarity##
+            ## Von Mise fitting: Location Similarity##
             # best_vals = subject.VonMise_fitting(loc_diff, filtered_responseError)
             # subject.save_DerivativeVonMisesFigure('Angle Location Difference from Previous', 'LocationDiff_DerivativeVonMises.pdf', loc_diff, filtered_responseError, 180, best_vals)
 
-            # ## Trials back and Reaction Time for Location##
+            ## Trials back and Reaction Time for Location##
             # save_TrialsBack_RT_Figure(loc_diff, filtered_RT, 180, 'Location Difference from Previous', result_saving_path + 'TrialsBack_RT_Location.pdf')
