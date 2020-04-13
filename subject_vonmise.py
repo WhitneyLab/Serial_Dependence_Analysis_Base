@@ -242,7 +242,7 @@ class Subject:
         best_vals, covar = curve_fit(func, x, y, p0=init_vals, bounds = bounds_input)
         return best_vals
 
-    def VonMise_fitting(self, x, y, func=vonmise_derivative, init_vals=[-25, 4],  bounds_input = ([-60,2],[0,np.inf])):
+    def VonMise_fitting(self, x, y, x_range, func=vonmise_derivative, init_vals=[-25, 4],  bounds_input = ([-60,2],[0,np.inf])):
         best_vals = self.CurvefitFunc(x, y, init_vals=init_vals, bounds_input = bounds_input)
 
         if self.bootstrap:
@@ -358,7 +358,7 @@ if __name__ == "__main__":
             stimuli_diff, loc_diff, filtered_responseError, filtered_RT = subject.getnBack_diff(nBack)
 
             # ## Von Mise fitting: Shape Similarity##
-            best_vals = subject.VonMise_fitting(stimuli_diff, filtered_responseError)
+            best_vals = subject.VonMise_fitting(stimuli_diff, filtered_responseError, 75)
             subject.save_DerivativeVonMisesFigure('Morph Difference from Previous', 'ShapeDiff_DerivativeVonMises.pdf', stimuli_diff, filtered_responseError, 75, best_vals)
 
             #### Extract CSV ####
