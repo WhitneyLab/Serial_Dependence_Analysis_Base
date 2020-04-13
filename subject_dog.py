@@ -241,11 +241,11 @@ class Subject:
         del output_data['blockType']
         output_data.to_csv(self.result_folder + fileName, index=False, header=True)
     
-    def CurvefitFunc(self, x, y, func=DoG, init_vals=[-20, 10], bounds_input = ([-np.inf,0],[0,40])):
+    def CurvefitFunc(self, x, y, func=DoG, init_vals=[-20, 10], bounds_input = ([-np.inf,10],[0,74])):
         best_vals, covar = curve_fit(func, x, y, p0=init_vals, bounds = bounds_input)
         return best_vals
 
-    def VonMise_fitting(self, x, y, x_range, func=DoG, init_vals=[-20, 10],  bounds_input = ([-np.inf,0],[0,40])):
+    def DoG_fitting(self, x, y, x_range, func=DoG, init_vals=[-20, 10],  bounds_input = ([-np.inf,10],[0,74])):
         best_vals = self.CurvefitFunc(x, y, init_vals=init_vals, bounds_input = bounds_input)
 
         if self.bootstrap:
@@ -282,9 +282,9 @@ class Subject:
         return best_vals
 
 
-    def save_DerivativeVonMisesFigure(self, xlabel_name, filename, x, y, x_range, best_vals):
+    def save_DerivativeGaussian(self, xlabel_name, filename, x, y, x_range, best_vals):
         plt.figure()
-        plt.title("Derivative Gaussian n Trials Back")
+        #plt.title("Derivative Gaussian n Trials Back")
         plt.xlabel(xlabel_name)
         plt.ylabel('Error on Current Trial')
         plt.plot(x, y, 'co', alpha=0.5, markersize=10)
@@ -301,6 +301,7 @@ class Subject:
         # xdata = np.linspace(-peak_x, peak_x, 100)
         # plt.plot(xdata, poly1d_fn(xdata), '--r', linewidth = 2)
         # print(coef[0], coef[1])
+        plt.title("half amplitude = {0:.4f}, half width = {1:.4f}, total trials = {2:d}". format(np.max(new_y), new_x[np.argmax(new_y)], len(x)))
         plt.savefig(self.result_folder + filename, dpi=1200)
         plt.close()
 
@@ -341,29 +342,29 @@ if __name__ == "__main__":
             ### Initialize a subject ###
             subject = Subject(data, result_saving_path_sub, bootstrap=True, permutation=False)
 
-            subject.save_RTfigure('ReactionTime.pdf')
+            #subject.save_RTfigure('ReactionTime.pdf')
             subject.outlier_removal_RT()
-            subject.save_RTfigure('ReactionTime_OutlierRemoved.pdf')
-            subject.save_SRfigure('RawData.pdf')
+            #subject.save_RTfigure('ReactionTime_OutlierRemoved.pdf')
+            #subject.save_SRfigure('RawData.pdf')
 
             ### Polynomial Correction ###
             # subject.toLinear()
             # subject.save_SRfigure('CorrectedData.pdf')
             subject.error()
-            subject.save_Errorfigure('RawError.pdf')
+            #subject.save_Errorfigure('RawError.pdf')
             subject.outlier_removal_SD()
-            subject.save_Errorfigure('ErrorResponse_OutlierRemoved.pdf')
+            #subject.save_Errorfigure('ErrorResponse_OutlierRemoved.pdf')
             subject.polyCorrection_onError()
             # subject.save_Polyfigure('PolyFit.pdf')
             # subject.fromLinear()
-            subject.save_Errorfigure2('BiasRemoved.pdf')
+            #subject.save_Errorfigure2('BiasRemoved.pdf')
 
             ## Compute the stimulus difference ##
             stimuli_diff, loc_diff, filtered_responseError, filtered_RT = subject.getnBack_diff(nBack)
 
             # ## Von Mise fitting: Shape Similarity##
-            best_vals = subject.VonMise_fitting(stimuli_diff, filtered_responseError, 75)
-            subject.save_DerivativeVonMisesFigure('Morph Difference from Previous', 'ShapeDiff_DerivativeVonMises.pdf', stimuli_diff, filtered_responseError, 75, best_vals)
+            best_vals = subject.DoG_fitting(stimuli_diff, filtered_responseError, 75)
+            subject.save_DerivativeGaussian('Morph Difference from Previous', 'ShapeDiff_DerivativeVonMises.pdf', stimuli_diff, filtered_responseError, 75, best_vals)
 
             #### Extract CSV ####
             subject.Extract_currentCSV(nBack, outputCSV_name)
