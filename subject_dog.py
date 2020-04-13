@@ -257,7 +257,9 @@ class Subject:
                 ydataNEW = [y[i] for i in RandIndex] # change ydata index
                 try:
                     temp_best_vals = self.CurvefitFunc(xdataNEW, ydataNEW, init_vals=init_vals, bounds_input=bounds_input)
-                    OutA.append(temp_best_vals[0])  # bootstrap make a sample * range(size) times
+                    new_x = np.linspace(-x_range, x_range, 300)
+                    new_y = [DoG(xi,temp_best_vals[0],temp_best_vals[1]) for xi in new_x]
+                    OutA.append(np.max(new_y))
                 except RuntimeError:
                     pass
             print("bs_a:",round(np.mean(OutA),2),"	95% CI:",np.percentile(OutA,[2.5,97.5]))
@@ -337,7 +339,7 @@ if __name__ == "__main__":
             outputCSV_name = 'test.csv'
 
             ### Initialize a subject ###
-            subject = Subject(data, result_saving_path_sub, bootstrap=True, permutation=True)
+            subject = Subject(data, result_saving_path_sub, bootstrap=True, permutation=False)
 
             subject.save_RTfigure('ReactionTime.pdf')
             subject.outlier_removal_RT()
