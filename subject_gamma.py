@@ -30,7 +30,7 @@ def recenter(x, threshold=74):
             x[i] = x[i] + 2 * threshold
     return x
 
-def getRunningMean(stimuli_diff, filtered_responseError, halfway =74, step = 8):
+def getRunningMean(stimuli_diff, filtered_responseError, halfway =74, step = 20):
     RM = [None] * (2 * halfway + 1); # running mean initialization
     xvals = list(range(-halfway, halfway + 1)) # index for running mean -90~90 + -90~90 (avoid error in sep[jj] == 91\92...
     allx_vals = xvals + xvals
@@ -264,7 +264,8 @@ class Subject:
                 except RuntimeError:
                     pass
             print("bs_a:",round(np.mean(OutA),2),"	95% CI:",np.percentile(OutA,[2.5,97.5]))
-        
+            np.save(self.result_folder + 'bootstrap.npy', OutA)
+            
         if self.permutation:
             # perm_a, perm_b = repeate_sampling('perm', xdata, ydata, CurvefitFunc, size = permSize)
             OutA = [] # Output a array, store each trial's a
