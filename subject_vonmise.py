@@ -278,6 +278,7 @@ class Subject:
 
     def save_DerivativeVonMisesFigure(self, xlabel_name, filename, x, y, x_range, best_vals):
         plt.figure()
+        plt.ylim(-40, 40)
         #plt.title("Derivative Von Mises n Trials Back")
         plt.xlabel(xlabel_name)
         plt.ylabel('Error on Current Trial')

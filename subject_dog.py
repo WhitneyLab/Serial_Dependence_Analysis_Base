@@ -284,6 +284,7 @@ class Subject:
 
     def save_DerivativeGaussian(self, xlabel_name, filename, x, y, x_range, best_vals):
         plt.figure()
+        plt.ylim(-40, 40)
         #plt.title("Derivative Gaussian n Trials Back")
         plt.xlabel(xlabel_name)
         plt.ylabel('Error on Current Trial')
@@ -364,7 +365,7 @@ if __name__ == "__main__":
 
             # ## Von Mise fitting: Shape Similarity##
             best_vals = subject.DoG_fitting(stimuli_diff, filtered_responseError, 75)
-            subject.save_DerivativeGaussian('Morph Difference from Previous', 'ShapeDiff_DerivativeVonMises.pdf', stimuli_diff, filtered_responseError, 75, best_vals)
+            subject.save_DerivativeGaussian('Morph Difference from Previous', 'ShapeDiff_DoG.pdf', stimuli_diff, filtered_responseError, 75, best_vals)
 
             #### Extract CSV ####
             subject.Extract_currentCSV(nBack, outputCSV_name)

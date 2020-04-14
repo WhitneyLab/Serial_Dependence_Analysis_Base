@@ -238,7 +238,7 @@ class Subject:
         del output_data['blockType']
         output_data.to_csv(self.result_folder + fileName, index=False, header=True)
     
-    def CurvefitFunc(self, x, y, func=Gamma, init_vals=[20, 3, 0.5], bounds_input = ([0,0,0.5],[200,3,np.inf])):
+    def CurvefitFunc(self, x, y, func=Gamma, init_vals=[20, 3, 0.5], bounds_input = ([0,0,0.5],[200,10,np.inf])):
         new_x = x.copy()
         new_y = y.copy()
         for i, xi in enumerate(new_x):
@@ -248,7 +248,7 @@ class Subject:
         best_vals, covar = curve_fit(func, new_x, new_y, p0=init_vals, bounds = bounds_input)
         return best_vals
 
-    def Gamma_fitting(self, x, y, func=Gamma, init_vals=[20, 3, 0.5], bounds_input = ([0,1,0.5],[200,3,np.inf])):
+    def Gamma_fitting(self, x, y, func=Gamma, init_vals=[20, 3, 0.5], bounds_input = ([0,1,0.5],[200,10,np.inf])):
         best_vals = self.CurvefitFunc(x, y, init_vals=init_vals, bounds_input = bounds_input)
 
         if self.bootstrap:
@@ -293,6 +293,7 @@ class Subject:
         plt.savefig(self.result_folder + 'Test.pdf', dpi=1200)
 
         plt.figure()
+        plt.ylim(-40, 40)
         #plt.title("Gamma n Trials Back")
         plt.xlabel(xlabel_name)
         plt.ylabel('Error on Current Trial')
@@ -372,7 +373,7 @@ if __name__ == "__main__":
 
             ## Von Mise fitting: Shape Similarity##
             best_vals = subject.Gamma_fitting(stimuli_diff, filtered_responseError)
-            subject.save_GammaFigure('Morph Difference from Previous', 'ShapeDiff_DerivativeVonMises.pdf', stimuli_diff, filtered_responseError, 75, best_vals)
+            subject.save_GammaFigure('Morph Difference from Previous', 'ShapeDiff_Gamma.pdf', stimuli_diff, filtered_responseError, 75, best_vals)
 
             #### Extract CSV ####
             subject.Extract_currentCSV(nBack, outputCSV_name)
