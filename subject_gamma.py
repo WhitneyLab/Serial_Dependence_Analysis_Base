@@ -348,7 +348,7 @@ if __name__ == "__main__":
             outputCSV_name = 'test.csv'
 
             ### Initialize a subject ###
-            subject = Subject(data, result_saving_path_sub, bootstrap=True, permutation=True)
+            subject = Subject(dataList[i], result_saving_path_sub, bootstrap=True, permutation=True)
 
             #subject.save_RTfigure('ReactionTime.pdf')
             subject.outlier_removal_RT()
