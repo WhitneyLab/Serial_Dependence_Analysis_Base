@@ -77,6 +77,8 @@ class Subject:
 
         self.current_stimuliDiff = []
         self.DoG_values = []
+        self.bootstrap_values = []
+        self.RM = []
         self.mean_error = 0
         self.std_error = 0
 
@@ -236,6 +238,9 @@ class Subject:
 
         output_data['Stim_diff'] = self.current_stimuliDiff
         output_data['DoG_values'] = self.DoG_values
+        df = pd.DataFrame({'bootstrap_values':np.array(self.bootstrap_values)})
+        df1 = pd.DataFrame({'Running_Mean':np.array(self.RM)})
+        output_data = pd.concat([output_data, df, df1], axis=1)
         del output_data['level_0']
         del output_data['index']
         del output_data['blockType']
@@ -263,7 +268,8 @@ class Subject:
                 except RuntimeError:
                     pass
             print("bs_a:",round(np.mean(OutA),2),"	95% CI:",np.percentile(OutA,[2.5,97.5]))
-            np.save(self.result_folder + 'bootstrap.npy', OutA)
+            self.bootstrap_values = OutA
+            # np.save(self.result_folder + 'bootstrap.npy', OutA)
         
         if self.permutation:
             # perm_a, perm_b = repeate_sampling('perm', xdata, ydata, CurvefitFunc, size = permSize)
@@ -296,6 +302,7 @@ class Subject:
         plt.plot(new_x, new_y, '-', linewidth = 4)
         #### RUNNING MEAN ####
         RM, xvals = getRunningMean(x, y, halfway=x_range)
+        self.RM = RM
         plt.plot(xvals, RM, label = 'Running Mean', color = 'g', linewidth = 3)
         peak_x = (new_x[np.argmax(new_y)])
         # poly1d_fn, coef = getRegressionLine(x, y, peak_x)
@@ -323,25 +330,24 @@ if __name__ == "__main__":
     ### Read data ###
     path = './' ## the folder path containing all experiment csv files
     data, dataList, subjectList = get_multiFrames(path)
-    os.mkdir('./DoG/')
+    results_path = './results/'
 
     ## Loop through every subjects ##
     for i in range(len(dataList)):
 
         temp_filename, _ = os.path.splitext(subjectList[i])
-        result_saving_path = './DoG/' + temp_filename + '/'
-        os.mkdir(result_saving_path)
+        prefix = temp_filename.split('_')[0]
 
         ## Loop through every trial back up to 3 ##
         for j in range(3):
 
             nBack = j + 1
-            result_saving_path_sub = result_saving_path + str(nBack) + '/'
-            os.mkdir(result_saving_path_sub)
-            outputCSV_name = 'test.csv'
+            result_saving_path = results_path + prefix + '_1_' + str(nBack) + 'nBack/'
+            os.mkdir(result_saving_path)
+            outputCSV_name = 'output.csv'
 
             ### Initialize a subject ###
-            subject = Subject(dataList[i], result_saving_path_sub, bootstrap=True, permutation=False)
+            subject = Subject(dataList[i], result_saving_path, bootstrap=True, permutation=False)
 
             #subject.save_RTfigure('ReactionTime.pdf')
             subject.outlier_removal_RT()

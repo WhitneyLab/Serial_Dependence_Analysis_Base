@@ -74,6 +74,8 @@ class Subject:
 
         self.current_stimuliDiff = []
         self.Gamma_values = []
+        self.bootstrap_values = []
+        self.RM = []
         self.mean_error = 0
         self.std_error = 0
 
@@ -233,6 +235,9 @@ class Subject:
 
         output_data['Stim_diff'] = self.current_stimuliDiff
         output_data['Gamma_values'] = self.Gamma_values
+        df = pd.DataFrame({'bootstrap_values':np.array(self.bootstrap_values)})
+        df1 = pd.DataFrame({'Running_Mean':np.array(self.RM)})
+        output_data = pd.concat([output_data, df, df1], axis=1)
         del output_data['level_0']
         del output_data['index']
         del output_data['blockType']
@@ -248,7 +253,7 @@ class Subject:
         best_vals, covar = curve_fit(func, new_x, new_y, p0=init_vals, bounds = bounds_input)
         return best_vals
 
-    def Gamma_fitting(self, x, y, func=Gamma, init_vals=[20, 3, 0.5], bounds_input = ([0,1,0.5],[200,10,np.inf])):
+    def Gamma_fitting(self, x, y, x_range, func=Gamma, init_vals=[20, 3, 0.5], bounds_input = ([0,1,0.5],[200,10,np.inf])):
         best_vals = self.CurvefitFunc(x, y, init_vals=init_vals, bounds_input = bounds_input)
 
         if self.bootstrap:
@@ -260,11 +265,14 @@ class Subject:
                 ydataNEW = [y[i] for i in RandIndex] # change ydata index
                 try:
                     temp_best_vals = self.CurvefitFunc(xdataNEW, ydataNEW, init_vals=init_vals, bounds_input=bounds_input)
-                    OutA.append(temp_best_vals[0])  # bootstrap make a sample * range(size) times
+                    new_x = np.linspace(0, x_range, 300)
+                    new_y = [Gamma(xi,temp_best_vals[0],temp_best_vals[1],temp_best_vals[2]) for xi in new_x]
+                    OutA.append(np.max(new_y))
                 except RuntimeError:
                     pass
             print("bs_a:",round(np.mean(OutA),2),"	95% CI:",np.percentile(OutA,[2.5,97.5]))
-            np.save(self.result_folder + 'bootstrap.npy', OutA)
+            self.bootstrap_values = OutA
+            # np.save(self.result_folder + 'bootstrap.npy', OutA)
             
         if self.permutation:
             # perm_a, perm_b = repeate_sampling('perm', xdata, ydata, CurvefitFunc, size = permSize)
@@ -284,14 +292,18 @@ class Subject:
 
 
     def save_GammaFigure(self, xlabel_name, filename, x, y, x_range, best_vals):
-        plt.figure()
-        plt.plot(x, y, 'bo', alpha=0.5, markersize=10)
+        #### RUNNING MEAN ####
+        RM, xvals = getRunningMean(x, y, halfway=x_range)
+        new_RM = np.zeros(x_range + 1)
+        for i in range(x_range):
+           new_RM[i] =  (RM[x_range + i] + RM[x_range - i]) / 2.0
+        
+        self.RM = new_RM
+        
         for i, xi in enumerate(x):
             if xi < 0:
                 x[i] = - x[i]
                 y[i] = - y[i]
-        plt.plot(x, y, 'ro', alpha=0.5, markersize=5)
-        plt.savefig(self.result_folder + 'Test.pdf', dpi=1200)
 
         plt.figure()
         plt.ylim(-40, 40)
@@ -304,9 +316,8 @@ class Subject:
         Gamma_values = [Gamma(xi,best_vals[0],best_vals[1],best_vals[2]) for xi in x]
         self.Gamma_values = Gamma_values
         plt.plot(new_x, new_y, '-', linewidth = 4)
-        #### RUNNING MEAN ####
-        # RM, xvals = getRunningMean(x, y, halfway=x_range)
-        # plt.plot(xvals, RM, label = 'Running Mean', color = 'g', linewidth = 3)
+        new_xvals = list(range(0, x_range + 1))
+        plt.plot(new_xvals, new_RM, label = 'Running Mean', color = 'g', linewidth = 3)
         peak_x = (new_x[np.argmax(new_y)])
         # poly1d_fn, coef = getRegressionLine(x, y, peak_x)
         # xdata = np.linspace(-peak_x, peak_x, 100)
@@ -333,24 +344,23 @@ if __name__ == "__main__":
     ### Read data ###
     path = './' ## the folder path containing all experiment csv files
     data, dataList, subjectList = get_multiFrames(path)
-    os.mkdir('./Gamma/')
+    results_path = './results/'
 
     ## Loop through every subjects ##
     for i in range(len(dataList)):
 
         temp_filename, _ = os.path.splitext(subjectList[i])
-        result_saving_path = './Gamma/' + temp_filename + '/'
-        os.mkdir(result_saving_path)
+        prefix = temp_filename.split('_')[0]
 
         ## Loop through every trial back up to 3 ##
         for j in range(3):
             nBack = j + 1
-            result_saving_path_sub = result_saving_path + str(nBack) + '/'
-            os.mkdir(result_saving_path_sub)
-            outputCSV_name = 'test.csv'
+            result_saving_path = results_path + prefix + '_3_' + str(nBack) + 'nBack/'
+            os.mkdir(result_saving_path)
+            outputCSV_name = 'output.csv'
 
             ### Initialize a subject ###
-            subject = Subject(dataList[i], result_saving_path_sub, bootstrap=True, permutation=True)
+            subject = Subject(dataList[i], result_saving_path, bootstrap=True, permutation=True)
 
             #subject.save_RTfigure('ReactionTime.pdf')
             subject.outlier_removal_RT()
@@ -373,7 +383,7 @@ if __name__ == "__main__":
             stimuli_diff, loc_diff, filtered_responseError, filtered_RT = subject.getnBack_diff(nBack)
 
             ## Von Mise fitting: Shape Similarity##
-            best_vals = subject.Gamma_fitting(stimuli_diff, filtered_responseError)
+            best_vals = subject.Gamma_fitting(stimuli_diff, filtered_responseError, 75)
             subject.save_GammaFigure('Morph Difference from Previous', 'ShapeDiff_Gamma.pdf', stimuli_diff, filtered_responseError, 75, best_vals)
 
             #### Extract CSV ####
