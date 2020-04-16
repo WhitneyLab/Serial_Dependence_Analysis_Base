@@ -296,7 +296,7 @@ class Subject:
         RM, xvals = getRunningMean(x, y, halfway=x_range)
         new_RM = np.zeros(x_range + 1)
         for i in range(x_range):
-           new_RM[i] =  (RM[x_range + i] + RM[x_range - i]) / 2.0
+           new_RM[i] =  (RM[x_range + i] - RM[x_range - i]) / 2.0
         
         self.RM = new_RM
         
