@@ -115,13 +115,13 @@ class Subject:
         filtered_y = []
         filter_RT = []
         for i in range(len(self.data['stimulusID'])):
-            if self.data.loc[i, 'trialNumber'] <= nBack:
+            if self.data.iloc[i, 5] <= nBack or self.data.iloc[i, 5] - self.data.iloc[i - nBack, 5] != nBack:
                 continue
             else:
-                differencePrevious_stimulusID.append(self.data.loc[i-nBack, 'stimulusID'] - self.data.loc[i, 'stimulusID'])
-                differencePrevious_stimulusLoc.append(self.data.loc[i-nBack, 'stimLocationDeg'] - self.data.loc[i, 'stimLocationDeg'])
-                filtered_y.append(self.data.loc[i, 'responseError'])
-                filter_RT.append(self.data.loc[i, 'RT'])
+                differencePrevious_stimulusID.append(self.data.iloc[i-nBack, 2] - self.data.iloc[i, 2])
+                differencePrevious_stimulusLoc.append(self.data.iloc[i-nBack, 8] - self.data.iloc[i, 8])
+                filtered_y.append(self.data.iloc[i, 10])
+                filter_RT.append(self.data.iloc[i, 4])
 
         differencePrevious_stimulusID = recenter(differencePrevious_stimulusID)
         differencePrevious_stimulusLoc = recenter(differencePrevious_stimulusLoc, threshold=180)
@@ -232,9 +232,16 @@ class Subject:
         ## Delete rows
         output_data = self.data.copy(deep=True)
 
+        ## Drop the rows due to outliers and first nBack rows##
+        dropList = []
+        for i in range(len(output_data['trialNumber']) - nBack):
+            if output_data.iloc[i + nBack, 5] - output_data.iloc[i, 5] != nBack:
+                dropList.append(i + nBack)
+        output_data.drop(dropList, axis=0, inplace=True)
+
+        ## Drop first nBack rows ##
         for i in range(nBack):
             output_data = output_data[output_data['trialNumber'] != i + 1]
-        # output_data = output_data.reset_index()
 
         output_data['Stim_diff'] = self.current_stimuliDiff
         output_data['DoG_values'] = self.DoG_values
