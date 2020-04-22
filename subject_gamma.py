@@ -128,7 +128,7 @@ class Subject:
 
     def outlier_removal_RT(self):
         length1 = len(self.data['RT'])
-        self.data = self.data[self.data['RT'] <= self.RT_threshold]
+        #self.data = self.data[self.data['RT'] <= self.RT_threshold]
         self.data = self.data.reset_index()
         length2 = len(self.data['RT'])
         print('{0:d} points are removed according to Reaction Time.'.format(length1 - length2))
@@ -146,8 +146,8 @@ class Subject:
         length1 = len(self.data['Error'])
         error_mean = np.mean(self.data['Error'])
         error_std = np.std(self.data['Error'])
-        self.data = self.data[self.data['Error'] <= error_mean + self.std_factors * error_std]
-        self.data = self.data[self.data['Error'] >= error_mean - self.std_factors * error_std]
+        #self.data = self.data[self.data['Error'] <= error_mean + self.std_factors * error_std]
+        #self.data = self.data[self.data['Error'] >= error_mean - self.std_factors * error_std]
         self.data = self.data.reset_index()
         length2 = len(self.data['Error'])
         print('{0:d} points are removed according to the Error std.'.format(length1 - length2))
@@ -250,7 +250,7 @@ class Subject:
         del output_data['blockType']
         output_data.to_csv(self.result_folder + fileName, index=False, header=True)
     
-    def CurvefitFunc(self, x, y, func=Gamma, init_vals=[20, 3, 0.5], bounds_input = ([0,0,0.5],[200,10,np.inf])):
+    def CurvefitFunc(self, x, y, func=Gamma, init_vals=[20, 3, 0.5], bounds_input = ([-200,0,0.5],[200,10,1])):
         new_x = x.copy()
         new_y = y.copy()
         for i, xi in enumerate(new_x):
@@ -260,7 +260,7 @@ class Subject:
         best_vals, covar = curve_fit(func, new_x, new_y, p0=init_vals, bounds = bounds_input)
         return best_vals
 
-    def Gamma_fitting(self, x, y, x_range, func=Gamma, init_vals=[20, 3, 0.5], bounds_input = ([0,1,0.5],[200,10,np.inf])):
+    def Gamma_fitting(self, x, y, x_range, func=Gamma, init_vals=[20, 3, 0.5], bounds_input = ([-200,1,0.5],[200,10,1])):
         best_vals = self.CurvefitFunc(x, y, init_vals=init_vals, bounds_input = bounds_input)
 
         if self.bootstrap:
@@ -274,7 +274,10 @@ class Subject:
                     temp_best_vals = self.CurvefitFunc(xdataNEW, ydataNEW, init_vals=init_vals, bounds_input=bounds_input)
                     new_x = np.linspace(0, x_range, 300)
                     new_y = [Gamma(xi,temp_best_vals[0],temp_best_vals[1],temp_best_vals[2]) for xi in new_x]
-                    OutA.append(np.max(new_y))
+                    if np.max(new_y) > 0:
+                        OutA.append(np.max(new_y))
+                    else:
+                        OutA.append(np.min(new_y))
                 except RuntimeError:
                     pass
             print("bs_a:",round(np.mean(OutA),2),"	95% CI:",np.percentile(OutA,[2.5,97.5]))
@@ -330,12 +333,17 @@ class Subject:
         # xdata = np.linspace(-peak_x, peak_x, 100)
         # plt.plot(xdata, poly1d_fn(xdata), '--r', linewidth = 2)
         # print(coef[0], coef[1])
-        plt.title("half amplitude = {0:.4f}, half width = {1:.4f}, total trials = {2:d}". format(np.max(new_y), new_x[np.argmax(new_y)], len(x)))
+        if np.max(new_y) > 0:
+            plt.title("half amplitude = {0:.4f}, half width = {1:.4f}, total trials = {2:d}". format(np.max(new_y), new_x[np.argmax(new_y)], len(x)))
+            print('Half Amplitude: {0:.4f}'.format(np.max(new_y)))
+            print('Half Width: {0:.4f}'.format(new_x[np.argmax(new_y)]))
+        else: 
+            plt.title("half amplitude = {0:.4f}, half width = {1:.4f}, total trials = {2:d}". format(np.min(new_y), new_x[np.argmin(new_y)], len(x)))
+            print('Half Amplitude: {0:.4f}'.format(np.min(new_y)))
+            print('Half Width: {0:.4f}'.format(new_x[np.argmin(new_y)]))
         plt.savefig(self.result_folder + filename, dpi=1200)
         plt.close()
 
-        print('Half Amplitude: {0:.4f}'.format(np.max(new_y)))
-        print('Half Width: {0:.4f}'.format(new_x[np.argmax(new_y)]))
 
 def save_TrialsBack_RT_Figure(x, y, x_range, xlabel_name, filename):
     plt.figure()
@@ -358,7 +366,8 @@ if __name__ == "__main__":
 
         temp_filename, _ = os.path.splitext(subjectList[i])
         prefix = temp_filename.split('_')[0]
-
+        #prefix = 'SuperSubject'
+    
         ## Loop through every trial back up to 3 ##
         for j in range(3):
             nBack = j + 1
@@ -366,7 +375,7 @@ if __name__ == "__main__":
             os.mkdir(result_saving_path)
             outputCSV_name = 'output.csv'
 
-            ### Initialize a subject ###
+            ### Initialize a subject ### #
             subject = Subject(dataList[i], result_saving_path, bootstrap=True, permutation=True)
 
             #subject.save_RTfigure('ReactionTime.pdf')
