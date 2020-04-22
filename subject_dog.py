@@ -335,7 +335,7 @@ def save_TrialsBack_RT_Figure(x, y, x_range, xlabel_name, filename):
 
 if __name__ == "__main__":
     ### Read data ###
-    path = './' ## the folder path containing all experiment csv files
+    path = './data/' ## the folder path containing all experiment csv files
     data, dataList, subjectList = get_multiFrames(path)
     results_path = './results/'
 
