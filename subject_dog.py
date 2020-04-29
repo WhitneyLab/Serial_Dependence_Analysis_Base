@@ -242,6 +242,7 @@ class Subject:
         ## Drop first nBack rows ##
         for i in range(nBack):
             output_data = output_data[output_data['trialNumber'] != i + 1]
+        output_data = output_data.reset_index()
 
         output_data['Stim_diff'] = self.current_stimuliDiff
         output_data['DoG_values'] = self.DoG_values

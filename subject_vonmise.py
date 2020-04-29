@@ -128,7 +128,7 @@ class Subject:
 
     def outlier_removal_RT(self):
         length1 = len(self.data['RT'])
-        #self.data = self.data[self.data['RT'] <= self.RT_threshold]
+        self.data = self.data[self.data['RT'] <= self.RT_threshold]
         self.data = self.data.reset_index()
         length2 = len(self.data['RT'])
         print('{0:d} points are removed according to Reaction Time.'.format(length1 - length2))
@@ -146,8 +146,8 @@ class Subject:
         length1 = len(self.data['Error'])
         error_mean = np.mean(self.data['Error'])
         error_std = np.std(self.data['Error'])
-        #self.data = self.data[self.data['Error'] <= error_mean + self.std_factors * error_std]
-        #self.data = self.data[self.data['Error'] >= error_mean - self.std_factors * error_std]
+        self.data = self.data[self.data['Error'] <= error_mean + self.std_factors * error_std]
+        self.data = self.data[self.data['Error'] >= error_mean - self.std_factors * error_std]
         self.data = self.data.reset_index()
         length2 = len(self.data['Error'])
         print('{0:d} points are removed according to the Error std.'.format(length1 - length2))
@@ -234,11 +234,12 @@ class Subject:
         for i in range(len(output_data['trialNumber']) - nBack):
             if output_data.iloc[i + nBack, 5] - output_data.iloc[i, 5] != nBack:
                 dropList.append(i + nBack)
-        output_data.drop(dropList, axis=0, inplace=True)
-
-        ## Drop first nBack rows ##
+        
         for i in range(nBack):
-            output_data = output_data[output_data['trialNumber'] != i + 1]
+            if (i + 1) not in dropList:
+                dropList.append(i + 1)
+
+        output_data.drop(dropList, axis=0, inplace=True)
 
         output_data['Stim_diff'] = self.current_stimuliDiff
         output_data['DoVM_values'] = self.DoVM_values
