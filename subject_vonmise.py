@@ -355,8 +355,8 @@ if __name__ == "__main__":
         for j in range(3):
 
             nBack = j + 1
-            result_saving_path_figure = results_path + prefix + '_VM_Figure_' + str(nBack) + 'nBack.pdf'
-            result_saving_path_outputcsv = results_path + prefix + '_VM_output_' + str(nBack) + 'nBack.csv'
+            result_saving_path_figure = prefix + '_VM_Figure_' + str(nBack) + 'nBack.pdf'
+            result_saving_path_outputcsv = prefix + '_VM_output_' + str(nBack) + 'nBack.csv'
             # os.mkdir(result_saving_path)
 
             ### Initialize a subject ### 
