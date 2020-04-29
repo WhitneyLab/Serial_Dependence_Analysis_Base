@@ -348,7 +348,8 @@ if __name__ == "__main__":
         temp_filename, _ = os.path.splitext(subjectList[i])
         prefix = temp_filename.split('_')[0]
         #prefix = 'SuperSubject'
-        os.mkdir(results_path + prefix + '/')
+        result_saving_path = results_path + prefix + '/'
+        os.mkdir(result_saving_path)
         
         ## Loop through every trial back up to 3 ##
         for j in range(3):
