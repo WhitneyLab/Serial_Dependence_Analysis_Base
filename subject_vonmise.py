@@ -348,14 +348,15 @@ if __name__ == "__main__":
         temp_filename, _ = os.path.splitext(subjectList[i])
         prefix = temp_filename.split('_')[0]
         #prefix = 'SuperSubject'
+        os.mkdir(results_path + prefix + '/')
         
         ## Loop through every trial back up to 3 ##
         for j in range(3):
 
             nBack = j + 1
-            result_saving_path = results_path + prefix + '_2_' + str(nBack) + 'nBack/'
-            os.mkdir(result_saving_path)
-            outputCSV_name = 'output.csv'
+            result_saving_path_figure = results_path + prefix + '_VM_Figure_' + str(nBack) + 'nBack.pdf'
+            result_saving_path_outputcsv = results_path + prefix + '_VM_output_' + str(nBack) + 'nBack.csv'
+            # os.mkdir(result_saving_path)
 
             ### Initialize a subject ### 
             subject = Subject(dataList[i], result_saving_path, bootstrap=True, permutation=True)
@@ -382,10 +383,10 @@ if __name__ == "__main__":
 
             # ## Von Mise fitting: Shape Similarity##
             best_vals = subject.VonMise_fitting(stimuli_diff, filtered_responseError, 75)
-            subject.save_DerivativeVonMisesFigure('Morph Difference from Previous', 'ShapeDiff_DerivativeVonMises.pdf', stimuli_diff, filtered_responseError, 75, best_vals)
+            subject.save_DerivativeVonMisesFigure('Morph Difference from Previous', result_saving_path_figure, stimuli_diff, filtered_responseError, 75, best_vals)
 
             #### Extract CSV ####
-            subject.Extract_currentCSV(nBack, outputCSV_name)
+            subject.Extract_currentCSV(nBack, result_saving_path_outputcsv)
 
             ## Trials back and Reaction Time for Shape##
             # save_TrialsBack_RT_Figure(stimuli_diff, filtered_RT, 75, 'Morph Difference from Previous', result_saving_path + 'TrialsBack_RT_Shape.pdf')

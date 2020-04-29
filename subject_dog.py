@@ -344,12 +344,13 @@ if __name__ == "__main__":
 
         temp_filename, _ = os.path.splitext(subjectList[i])
         prefix = temp_filename.split('_')[0]
+        os.mkdir(results_path + prefix + '/')
 
         ## Loop through every trial back up to 3 ##
         for j in range(3):
 
             nBack = j + 1
-            result_saving_path = results_path + prefix + '_1_' + str(nBack) + 'nBack/'
+            result_saving_path = results_path + prefix + '_DoG_' + str(nBack) + 'nBack/'
             os.mkdir(result_saving_path)
             outputCSV_name = 'output.csv'
 
