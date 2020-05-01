@@ -78,10 +78,9 @@ class Subject:
         self.DoVM_values = []
         self.bootstrap_values = []
         self.RM = []
-        self.mean_error = 0
-        self.std_error = 0
         self.data['shifted_stimulusID'] = self.data['stimulusID'].shift(-self.nBack)
         self.data['shifted_stimLocationDeg'] = self.data['stimLocationDeg'].shift(-self.nBack)
+        self.data['shifted_morphID'] = self.data['morphID'].shift(-self.nBack)
         
 
     # def toLinear(self):
@@ -108,8 +107,8 @@ class Subject:
         self.data['responseError'] = recenter(temp_error)
     
     def polyCorrection_onError(self):
-        coefs = np.polyfit(self.data['stimulusID'], self.data['Error'], self.polyfit_order) # polynomial coefs
-        self.data['responseError'] = [y - polyFunc(x, coefs) for x,y in zip(self.data['stimulusID'],self.data['Error'])]
+        coefs = np.polyfit(self.data['shifted_stimulusID'], self.data['Error'], self.polyfit_order) # polynomial coefs
+        self.data['responseError'] = [y - polyFunc(x, coefs) for x,y in zip(self.data['shifted_stimulusID'],self.data['Error'])]
 
     def getnBack_diff(self):
         differencePrevious_stimulusID = []
@@ -122,7 +121,7 @@ class Subject:
             else:
                 differencePrevious_stimulusID.append(self.data.iloc[i, 2] - self.data.iloc[i, 9])
                 differencePrevious_stimulusLoc.append(self.data.iloc[i, 8] - self.data.iloc[i, 10])
-                filtered_y.append(self.data.iloc[i, 12])
+                filtered_y.append(self.data.iloc[i, 13])
                 filter_RT.append(self.data.iloc[i, 4])
                 
         differencePrevious_stimulusID = recenter(differencePrevious_stimulusID)
@@ -132,6 +131,7 @@ class Subject:
         return differencePrevious_stimulusID, differencePrevious_stimulusLoc, filtered_y, filter_RT
 
     def outlier_removal_RT(self):
+        self.data['RT'] = self.data['RT'].shift(periods=-self.nBack, fill_value=0)
         length1 = len(self.data['RT'])
         self.data = self.data[self.data['RT'] <= self.RT_threshold]
         self.data = self.data.reset_index()
@@ -139,13 +139,9 @@ class Subject:
         print('{0:d} points are removed according to Reaction Time.'.format(length1 - length2))
 
     def error(self):
-        self.data['Error'] = [y - x for x, y in zip(self.data['stimulusID'],self.data['morphID'])]
+        self.data['Error'] = [y - x for x, y in zip(self.data['shifted_stimulusID'],self.data['shifted_morphID'])]
         temp_error = self.data['Error'].copy()
         self.data['Error'] = recenter(temp_error)
-        self.mean_error = np.mean(np.abs(self.data['Error']))
-        self.std_error = np.std(np.abs(self.data['Error']))
-        # print(self.mean_error)
-        # print(self.std_error)
 
     def outlier_removal_SD(self):
         length1 = len(self.data['Error'])

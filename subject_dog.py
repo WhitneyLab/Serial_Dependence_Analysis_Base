@@ -79,8 +79,6 @@ class Subject:
         self.DoG_values = []
         self.bootstrap_values = []
         self.RM = []
-        self.mean_error = 0
-        self.std_error = 0
 
     # def toLinear(self):
     #     for i in range(len(self.data['stimulusID'])):
@@ -140,10 +138,6 @@ class Subject:
         self.data['Error'] = [y - x for x, y in zip(self.data['stimulusID'],self.data['morphID'])]
         temp_error = self.data['Error'].copy()
         self.data['Error'] = recenter(temp_error)
-        self.mean_error = np.mean(np.abs(self.data['Error']))
-        self.std_error = np.std(np.abs(self.data['Error']))
-        # print(self.mean_error)
-        # print(self.std_error)
 
     def outlier_removal_SD(self):
         length1 = len(self.data['Error'])
