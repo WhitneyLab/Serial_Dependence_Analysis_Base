@@ -60,12 +60,14 @@ def getRegressionLine(x, y, peak):
     return poly1d_fn, coef
 
 class Subject:
-    def __init__(self, dataFrame, result_saving_path, RT_threshold=20, std_factors=3, polyfit_order=10, stimulus_maxID=147, bootstrap=False, permutation=False):
+    def __init__(self, dataFrame, nBack, result_saving_path, RT_threshold=20, std_factors=3, polyfit_order=10, stimulus_maxID=147, trial_num=85, bootstrap=False, permutation=False):
         self.data = dataFrame
+        self.nBack = nBack
         self.std_factors = std_factors
         self.RT_threshold = RT_threshold
         self.polyfit_order = polyfit_order
         self.stimulus_maxID = stimulus_maxID
+        self.trial_num = trial_num
         self.result_folder = result_saving_path
         self.bootstrap = bootstrap
         self.bsIter = 1000
@@ -78,6 +80,9 @@ class Subject:
         self.RM = []
         self.mean_error = 0
         self.std_error = 0
+        self.data['shifted_stimulusID'] = self.data['stimulusID'].shift(-self.nBack)
+        self.data['shifted_stimLocationDeg'] = self.data['stimLocationDeg'].shift(-self.nBack)
+        
 
     # def toLinear(self):
     #     for i in range(len(self.data['stimulusID'])):
@@ -106,18 +111,18 @@ class Subject:
         coefs = np.polyfit(self.data['stimulusID'], self.data['Error'], self.polyfit_order) # polynomial coefs
         self.data['responseError'] = [y - polyFunc(x, coefs) for x,y in zip(self.data['stimulusID'],self.data['Error'])]
 
-    def getnBack_diff(self, nBack):
+    def getnBack_diff(self):
         differencePrevious_stimulusID = []
         differencePrevious_stimulusLoc = []
         filtered_y = []
         filter_RT = []
         for i in range(len(self.data['stimulusID'])):
-            if self.data.iloc[i, 5] <= nBack or self.data.iloc[i, 5] - self.data.iloc[i - nBack, 5] != nBack:
+            if self.data.iloc[i, 5] > self.trial_num - self.nBack:
                 continue
             else:
-                differencePrevious_stimulusID.append(self.data.iloc[i-nBack, 2] - self.data.iloc[i, 2])
-                differencePrevious_stimulusLoc.append(self.data.iloc[i-nBack, 8] - self.data.iloc[i, 8])
-                filtered_y.append(self.data.iloc[i, 10])
+                differencePrevious_stimulusID.append(self.data.iloc[i, 2] - self.data.iloc[i, 9])
+                differencePrevious_stimulusLoc.append(self.data.iloc[i, 8] - self.data.iloc[i, 10])
+                filtered_y.append(self.data.iloc[i, 12])
                 filter_RT.append(self.data.iloc[i, 4])
                 
         differencePrevious_stimulusID = recenter(differencePrevious_stimulusID)
@@ -224,23 +229,14 @@ class Subject:
     def add_column(self, column_data, column_name):
         self.data[column_name] = column_data
 
-    def Extract_currentCSV(self, nBack, fileName):
+    def Extract_currentCSV(self, fileName):
         ## FileName: SubjectName_nBack_outlierRemoveornot
         ## Delete rows
         output_data = self.data.copy(deep=True)
-
-        ## Drop the rows due to outliers and first nBack rows##
-        dropList = []
-        for i in range(len(output_data['trialNumber']) - nBack):
-            if output_data.iloc[i + nBack, 5] - output_data.iloc[i, 5] != nBack:
-                dropList.append(i + nBack)
         
         for i in range(nBack):
-            if (i + 1) not in dropList:
-                dropList.append(i + 1)
-
-        output_data.drop(dropList, axis=0, inplace=True)
-
+            output_data = output_data[output_data['trialNumber'] != self.trial_num - i]
+        
         output_data['Stim_diff'] = self.current_stimuliDiff
         output_data['DoVM_values'] = self.DoVM_values
         df = pd.DataFrame({'bootstrap_values':np.array(self.bootstrap_values)})
@@ -361,7 +357,7 @@ if __name__ == "__main__":
             # os.mkdir(result_saving_path)
 
             ### Initialize a subject ### 
-            subject = Subject(dataList[i], result_saving_path, bootstrap=True, permutation=True)
+            subject = Subject(dataList[i], nBack, result_saving_path, bootstrap=True, permutation=True)
 
             #subject.save_RTfigure('ReactionTime.pdf')
             subject.outlier_removal_RT()
@@ -381,14 +377,14 @@ if __name__ == "__main__":
             #subject.save_Errorfigure2('BiasRemoved.pdf')
 
             ## Compute the stimulus difference ##
-            stimuli_diff, loc_diff, filtered_responseError, filtered_RT = subject.getnBack_diff(nBack)
+            stimuli_diff, loc_diff, filtered_responseError, filtered_RT = subject.getnBack_diff()
 
             # ## Von Mise fitting: Shape Similarity##
             best_vals = subject.VonMise_fitting(stimuli_diff, filtered_responseError, 75)
             subject.save_DerivativeVonMisesFigure('Morph Difference from Previous', result_saving_path_figure, stimuli_diff, filtered_responseError, 75, best_vals)
 
             #### Extract CSV ####
-            subject.Extract_currentCSV(nBack, result_saving_path_outputcsv)
+            subject.Extract_currentCSV(result_saving_path_outputcsv)
 
             ## Trials back and Reaction Time for Shape##
             # save_TrialsBack_RT_Figure(stimuli_diff, filtered_RT, 75, 'Morph Difference from Previous', result_saving_path + 'TrialsBack_RT_Shape.pdf')
