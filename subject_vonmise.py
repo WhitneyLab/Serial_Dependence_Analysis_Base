@@ -70,9 +70,9 @@ class Subject:
         self.trial_num = trial_num
         self.result_folder = result_saving_path
         self.bootstrap = bootstrap
-        self.bsIter = 5000
+        self.bsIter = 1000
         self.permutation = permutation
-        self.permIter = 5000
+        self.permIter = 1000
 
         self.current_stimuliDiff = []
         self.DoVM_values = []
@@ -81,6 +81,7 @@ class Subject:
         self.data['shifted_stimulusID'] = self.data['stimulusID'].shift(-self.nBack)
         self.data['shifted_stimLocationDeg'] = self.data['stimLocationDeg'].shift(-self.nBack)
         self.data['shifted_morphID'] = self.data['morphID'].shift(-self.nBack)
+        self.data['RT'] = self.data['RT'].shift(periods=-self.nBack, fill_value=0)
         
 
     # def toLinear(self):
@@ -131,7 +132,6 @@ class Subject:
         return differencePrevious_stimulusID, differencePrevious_stimulusLoc, filtered_y, filter_RT
 
     def outlier_removal_RT(self):
-        self.data['RT'] = self.data['RT'].shift(periods=-self.nBack, fill_value=0)
         length1 = len(self.data['RT'])
         #self.data = self.data[self.data['RT'] <= self.RT_threshold]
         self.data = self.data.reset_index()
@@ -142,6 +142,7 @@ class Subject:
         self.data['Error'] = [y - x for x, y in zip(self.data['shifted_stimulusID'],self.data['shifted_morphID'])]
         temp_error = self.data['Error'].copy()
         self.data['Error'] = recenter(temp_error)
+        self.data.dropna(inplace=True)
 
     def outlier_removal_SD(self):
         length1 = len(self.data['Error'])
@@ -336,16 +337,16 @@ if __name__ == "__main__":
     results_path = './results/'
 
     ## Loop through every subjects ##
-    #for i in range(len(dataList)):
+    for i in range(len(dataList)):
 
-    #temp_filename, _ = os.path.splitext(subjectList[i])
-    #prefix = temp_filename.split('_')[0]
-    prefix = 'SuperSubject'
-    result_saving_path = results_path + prefix + '/'
-    os.mkdir(result_saving_path)
+        temp_filename, _ = os.path.splitext(subjectList[i])
+        prefix = temp_filename.split('_')[0]
+        # prefix = 'SuperSubject'
+        result_saving_path = results_path + prefix + '/'
+        os.mkdir(result_saving_path)
         
     ## Loop through every trial back up to 3 ##
-    for j in range(3):
+        for j in range(3):
 
             nBack = j + 1
             result_saving_path_figure = prefix + '_VM_Figure_' + str(nBack) + 'nBack.pdf'
