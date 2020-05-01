@@ -70,9 +70,9 @@ class Subject:
         self.trial_num = trial_num
         self.result_folder = result_saving_path
         self.bootstrap = bootstrap
-        self.bsIter = 1000
+        self.bsIter = 5000
         self.permutation = permutation
-        self.permIter = 1000
+        self.permIter = 5000
 
         self.current_stimuliDiff = []
         self.DoVM_values = []
@@ -133,7 +133,7 @@ class Subject:
     def outlier_removal_RT(self):
         self.data['RT'] = self.data['RT'].shift(periods=-self.nBack, fill_value=0)
         length1 = len(self.data['RT'])
-        self.data = self.data[self.data['RT'] <= self.RT_threshold]
+        #self.data = self.data[self.data['RT'] <= self.RT_threshold]
         self.data = self.data.reset_index()
         length2 = len(self.data['RT'])
         print('{0:d} points are removed according to Reaction Time.'.format(length1 - length2))
@@ -147,8 +147,8 @@ class Subject:
         length1 = len(self.data['Error'])
         error_mean = np.mean(self.data['Error'])
         error_std = np.std(self.data['Error'])
-        self.data = self.data[self.data['Error'] <= error_mean + self.std_factors * error_std]
-        self.data = self.data[self.data['Error'] >= error_mean - self.std_factors * error_std]
+        #self.data = self.data[self.data['Error'] <= error_mean + self.std_factors * error_std]
+        #self.data = self.data[self.data['Error'] >= error_mean - self.std_factors * error_std]
         self.data = self.data.reset_index()
         length2 = len(self.data['Error'])
         print('{0:d} points are removed according to the Error std.'.format(length1 - length2))
@@ -290,16 +290,16 @@ class Subject:
 
     def save_DerivativeVonMisesFigure(self, xlabel_name, filename, x, y, x_range, best_vals):
         plt.figure()
-        plt.ylim(-40, 40)
+        plt.ylim(-30, 30) #(-40, 40)
         #plt.title("Derivative Von Mises n Trials Back")
         plt.xlabel(xlabel_name)
         plt.ylabel('Error on Current Trial')
-        plt.plot(x, y, 'co', alpha=0.5, markersize=10)
+        plt.plot(x, y, marker ='o', color= '#808080', ls = '', alpha=0.5, markersize=7, markeredgewidth=0.0)
         new_x = np.linspace(-x_range, x_range, 300)
         new_y = [vonmise_derivative(xi,best_vals[0],best_vals[1]) for xi in new_x]
         DoVM_values = [vonmise_derivative(xi,best_vals[0],best_vals[1]) for xi in x]
         self.DoVM_values = DoVM_values
-        plt.plot(new_x, new_y, '-', linewidth = 4)
+        plt.plot(new_x, new_y, 'k-', linewidth = 4)
         #### RUNNING MEAN ####
         RM, xvals = getRunningMean(x, y, halfway=x_range)
         self.RM = RM
@@ -314,7 +314,7 @@ class Subject:
         else: 
             plt.title("half amplitude = {0:.4f}, half width = {1:.4f}, total trials = {2:d}". format(-np.max(new_y), -new_x[np.argmax(new_y)], len(x)))
         plt.savefig(self.result_folder + filename, dpi=1200)
-        plt.close()
+
 
         print('Half Amplitude: {0:.4f}'.format(np.max(new_y)))
         print('Half Width: {0:.4f}'.format(new_x[np.argmax(new_y)]))
@@ -336,24 +336,24 @@ if __name__ == "__main__":
     results_path = './results/'
 
     ## Loop through every subjects ##
-    for i in range(len(dataList)):
+    #for i in range(len(dataList)):
 
-        temp_filename, _ = os.path.splitext(subjectList[i])
-        prefix = temp_filename.split('_')[0]
-        #prefix = 'SuperSubject'
-        result_saving_path = results_path + prefix + '/'
-        os.mkdir(result_saving_path)
+    #temp_filename, _ = os.path.splitext(subjectList[i])
+    #prefix = temp_filename.split('_')[0]
+    prefix = 'SuperSubject'
+    result_saving_path = results_path + prefix + '/'
+    os.mkdir(result_saving_path)
         
-        ## Loop through every trial back up to 3 ##
-        for j in range(3):
+    ## Loop through every trial back up to 3 ##
+    for j in range(3):
 
             nBack = j + 1
             result_saving_path_figure = prefix + '_VM_Figure_' + str(nBack) + 'nBack.pdf'
             result_saving_path_outputcsv = prefix + '_VM_output_' + str(nBack) + 'nBack.csv'
             # os.mkdir(result_saving_path)
 
-            ### Initialize a subject ### 
-            subject = Subject(dataList[i], nBack, result_saving_path, bootstrap=True, permutation=True)
+            ### Initialize a subject ### List[i]
+            subject = Subject(data, nBack, result_saving_path, bootstrap=True, permutation=True)
 
             #subject.save_RTfigure('ReactionTime.pdf')
             subject.outlier_removal_RT()
