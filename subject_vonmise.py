@@ -70,9 +70,9 @@ class Subject:
         self.trial_num = trial_num
         self.result_folder = result_saving_path
         self.bootstrap = bootstrap
-        self.bsIter = 1000
+        self.bsIter = 5000
         self.permutation = permutation
-        self.permIter = 1000
+        self.permIter = 5000
 
         self.current_stimuliDiff = []
         self.DoVM_values = []
@@ -109,8 +109,9 @@ class Subject:
     
     def polyCorrection_onError(self):
         coefs = np.polyfit(self.data['shifted_stimulusID'], self.data['Error'], self.polyfit_order) # polynomial coefs
-        self.data['responseError'] = [y - polyFunc(x, coefs) for x,y in zip(self.data['shifted_stimulusID'],self.data['Error'])]
-
+        #self.data['responseError'] = [y - polyFunc(x, coefs) for x,y in zip(self.data['shifted_stimulusID'],self.data['Error'])]
+        self.data['responseError'] = self.data['Error']
+        
     def getnBack_diff(self):
         differencePrevious_stimulusID = []
         differencePrevious_stimulusLoc = []
@@ -341,11 +342,11 @@ if __name__ == "__main__":
 
         temp_filename, _ = os.path.splitext(subjectList[i])
         prefix = temp_filename.split('_')[0]
-        # prefix = 'SuperSubject'
+        #prefix = 'SuperSubject'
         result_saving_path = results_path + prefix + '/'
         os.mkdir(result_saving_path)
         
-    ## Loop through every trial back up to 3 ##
+        ## Loop through every trial back up to 3 ##
         for j in range(3):
 
             nBack = j + 1
@@ -353,8 +354,8 @@ if __name__ == "__main__":
             result_saving_path_outputcsv = prefix + '_VM_output_' + str(nBack) + 'nBack.csv'
             # os.mkdir(result_saving_path)
 
-            ### Initialize a subject ### List[i]
-            subject = Subject(data, nBack, result_saving_path, bootstrap=True, permutation=True)
+            ### Initialize a subject ### 
+            subject = Subject(dataList[i], nBack, result_saving_path, bootstrap=True, permutation=True)
 
             #subject.save_RTfigure('ReactionTime.pdf')
             subject.outlier_removal_RT()
