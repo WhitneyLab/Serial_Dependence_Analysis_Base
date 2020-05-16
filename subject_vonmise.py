@@ -109,8 +109,8 @@ class Subject:
     
     def polyCorrection_onError(self):
         coefs = np.polyfit(self.data['shifted_stimulusID'], self.data['Error'], self.polyfit_order) # polynomial coefs
-        #self.data['responseError'] = [y - polyFunc(x, coefs) for x,y in zip(self.data['shifted_stimulusID'],self.data['Error'])]
-        self.data['responseError'] = self.data['Error']
+        self.data['responseError'] = [y - polyFunc(x, coefs) for x,y in zip(self.data['shifted_stimulusID'],self.data['Error'])]
+        #self.data['responseError'] = self.data['Error']
         
     def getnBack_diff(self):
         differencePrevious_stimulusID = []
@@ -134,7 +134,7 @@ class Subject:
 
     def outlier_removal_RT(self):
         length1 = len(self.data['RT'])
-        #self.data = self.data[self.data['RT'] <= self.RT_threshold]
+        self.data = self.data[self.data['RT'] <= self.RT_threshold]
         self.data = self.data.reset_index()
         length2 = len(self.data['RT'])
         print('{0:d} points are removed according to Reaction Time.'.format(length1 - length2))
@@ -149,8 +149,8 @@ class Subject:
         length1 = len(self.data['Error'])
         error_mean = np.mean(self.data['Error'])
         error_std = np.std(self.data['Error'])
-        #self.data = self.data[self.data['Error'] <= error_mean + self.std_factors * error_std]
-        #self.data = self.data[self.data['Error'] >= error_mean - self.std_factors * error_std]
+        self.data = self.data[self.data['Error'] <= error_mean + self.std_factors * error_std]
+        self.data = self.data[self.data['Error'] >= error_mean - self.std_factors * error_std]
         self.data = self.data.reset_index()
         length2 = len(self.data['Error'])
         print('{0:d} points are removed according to the Error std.'.format(length1 - length2))
@@ -245,11 +245,11 @@ class Subject:
         del output_data['blockType']
         output_data.to_csv(self.result_folder + fileName, index=False, header=True)
     
-    def CurvefitFunc(self, x, y, func=vonmise_derivative, init_vals=[-25, 4], bounds_input = ([-60,2],[60,np.inf])):
+    def CurvefitFunc(self, x, y, func=vonmise_derivative, init_vals=[-25, 4], bounds_input = ([-60,2],[60, 4])):
         best_vals, covar = curve_fit(func, x, y, p0=init_vals, bounds = bounds_input)
         return best_vals
 
-    def VonMise_fitting(self, x, y, x_range, func=vonmise_derivative, init_vals=[-25, 4],  bounds_input = ([-60,2],[60,np.inf])):
+    def VonMise_fitting(self, x, y, x_range, func=vonmise_derivative, init_vals=[-25, 4],  bounds_input = ([-60,2],[60,4])):
         best_vals = self.CurvefitFunc(x, y, init_vals=init_vals, bounds_input = bounds_input)
 
         if self.bootstrap:
@@ -338,24 +338,25 @@ if __name__ == "__main__":
     results_path = './results/'
 
     ## Loop through every subjects ##
-    for i in range(len(dataList)):
+    #for i in range(len(dataList)):
 
-        temp_filename, _ = os.path.splitext(subjectList[i])
-        prefix = temp_filename.split('_')[0]
-        #prefix = 'SuperSubject'
-        result_saving_path = results_path + prefix + '/'
-        os.mkdir(result_saving_path)
+        #temp_filename, _ = os.path.splitext(subjectList[i])
+        #prefix = temp_filename.split('_')[0]
+    prefix = 'UnderGrad_SuperSubject'
+        
+    result_saving_path = results_path + prefix + '/'
+    os.mkdir(result_saving_path)
         
         ## Loop through every trial back up to 3 ##
-        for j in range(3):
+    for j in range(3):
 
             nBack = j + 1
             result_saving_path_figure = prefix + '_VM_Figure_' + str(nBack) + 'nBack.pdf'
             result_saving_path_outputcsv = prefix + '_VM_output_' + str(nBack) + 'nBack.csv'
             # os.mkdir(result_saving_path)
 
-            ### Initialize a subject ### 
-            subject = Subject(dataList[i], nBack, result_saving_path, bootstrap=True, permutation=True)
+            ### Initialize a subject ### List[i]
+            subject = Subject(data, nBack, result_saving_path, bootstrap=True, permutation=True)
 
             #subject.save_RTfigure('ReactionTime.pdf')
             subject.outlier_removal_RT()
