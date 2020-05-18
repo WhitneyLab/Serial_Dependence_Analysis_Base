@@ -320,7 +320,7 @@ class Subject:
                 except RuntimeError:
                     pass
             print("bs_a:",round(np.mean(OutA),2),"	95% CI:",np.percentile(OutA,[2.5,97.5]))
-            #self.bootstrap_values = OutA  ###ADD ME BACK YO
+            self.bootstrap_values = OutA  ###ADD ME BACK YO
             # np.save(self.result_folder + 'bootstrap.npy', OutA)
             
         if self.permutation:
@@ -342,7 +342,8 @@ class Subject:
             print("perm_a:",round(np.mean(OutB),2),"	90% CI:",np.percentile(OutB,[5,95]))
 
         print('Von Mise Parameters: amplitude {0:.4f}, Kai {1:.4f}.'.format(best_vals[0],best_vals[1]))
-        return OutA ###TAKE OUT OUTA YO
+        return best_vals
+        #return OutA ###TAKE OUT OUTA YO
 
 
     def save_DerivativeVonMisesFigure(self, xlabel_name, filename, x, y, x_range, best_vals):
@@ -393,30 +394,30 @@ if __name__ == "__main__":
     results_path = './results/'
 
     ## Loop through every subjects ##
-    x_bin1 = [] 
-    y_bin1 = []
-    x_bin2 = []
-    y_bin2 = []
+#     x_bin1 = [] 
+#     y_bin1 = []
+#     x_bin2 = []
+#     y_bin2 = []
     for i in range(len(dataList)):
 
         temp_filename, _ = os.path.splitext(subjectList[i])
-        prefix = temp_filename.split('_')[0]
-        #prefix = 'SuperSubject'
+        #prefix = temp_filename.split('_')[0]
+        prefix = 'Under_SuperSubject'
         
         result_saving_path = results_path + prefix + '/'
-#         os.mkdir(result_saving_path)
+        os.mkdir(result_saving_path)
         
         ## Loop through every trial back up to 3 ##
-#         for j in range(3):
-        j = 0 ### change this to change the num of trials back
+        #for j in range(3):
+        j = -2 ### change this to change the num of trials back
 
         nBack = j + 1
         result_saving_path_figure = prefix + '_VM_Figure_' + str(nBack) + 'nBack.pdf'
         result_saving_path_outputcsv = prefix + '_VM_output_' + str(nBack) + 'nBack.csv'
         # os.mkdir(result_saving_path)
 
-        ### Initialize a subject ### 
-        subject = Subject(dataList[i], nBack, result_saving_path, bootstrap=True, permutation=False)
+        ### Initialize a subject ### List[i]
+        subject = Subject(data, nBack, result_saving_path, bootstrap=True, permutation=False)
 
         #subject.save_RTfigure('ReactionTime.pdf')
         subject.outlier_removal_RT()
@@ -439,20 +440,20 @@ if __name__ == "__main__":
         stimuli_diff, loc_diff, filtered_responseError, filtered_RT = subject.getnBack_diff()
 
         # ## Von Mise fitting: Shape Similarity##
-        #best_vals = subject.VonMise_fitting(stimuli_diff, filtered_responseError, 75)
-        temp_x_bin1, temp_y_bin1, temp_x_bin2, temp_y_bin2 = subject.VonMise_BinFitting(stimuli_diff, filtered_responseError, 75, loc_diff)
-        x_bin1 = x_bin1 + temp_x_bin1
-        y_bin1 = y_bin1 + temp_y_bin1
-        x_bin2 = x_bin2 + temp_x_bin2
-        y_bin2 = y_bin2 + temp_y_bin2
-#             print("Bin amplitudes:")
-#             print(mean_results)
-#             print("Bin stds:")
-#             print(std_results)
-        #subject.save_DerivativeVonMisesFigure('Morph Difference from Previous', result_saving_path_figure, stimuli_diff, filtered_responseError, 75, best_vals)
+        best_vals = subject.VonMise_fitting(stimuli_diff, filtered_responseError, 75)
+#         temp_x_bin1, temp_y_bin1, temp_x_bin2, temp_y_bin2 = subject.VonMise_BinFitting(stimuli_diff, filtered_responseError, 75, loc_diff)
+#         x_bin1 = x_bin1 + temp_x_bin1
+#         y_bin1 = y_bin1 + temp_y_bin1
+#         x_bin2 = x_bin2 + temp_x_bin2
+#         y_bin2 = y_bin2 + temp_y_bin2
+# #             print("Bin amplitudes:")
+# #             print(mean_results)
+# #             print("Bin stds:")
+# #             print(std_results)
+        subject.save_DerivativeVonMisesFigure('Morph Difference from Previous', result_saving_path_figure, stimuli_diff, filtered_responseError, 75, best_vals)
 
         #### Extract CSV ####
-        #subject.Extract_currentCSV(result_saving_path_outputcsv)
+        subject.Extract_currentCSV(result_saving_path_outputcsv)
 
         ## Trials back and Reaction Time for Shape##
         # save_TrialsBack_RT_Figure(stimuli_diff, filtered_RT, 75, 'Morph Difference from Previous', result_saving_path + 'TrialsBack_RT_Shape.pdf')
@@ -463,16 +464,16 @@ if __name__ == "__main__":
 
         ## Trials back and Reaction Time for Location##
         # save_TrialsBack_RT_Figure(loc_diff, filtered_RT, 180, 'Location Difference from Previous', result_saving_path + 'TrialsBack_RT_Location.pdf')
-    bootstraps = subject.VonMise_fitting(x_bin1, y_bin1, 75)
-    mean_temp = round(np.mean(bootstraps), 2)
-    CI_temp = np.percentile(bootstraps,[2.5,97.5])
-    print("bin amplitude = " + str(mean_temp))
-    print("bin CI = " + str(CI_temp))
-    print("\n")
-    
-    bootstraps = subject.VonMise_fitting(x_bin2, y_bin2, 75)
-    mean_temp = round(np.mean(bootstraps), 2)
-    CI_temp = np.percentile(bootstraps,[2.5,97.5])
-    print("bin amplitude = " + str(mean_temp))
-    print("bin CI = " + str(CI_temp))
-    print("\n")
+#     bootstraps = subject.VonMise_fitting(x_bin1, y_bin1, 75)
+#     mean_temp = round(np.mean(bootstraps), 2)
+#     CI_temp = np.percentile(bootstraps,[2.5,97.5])
+#     print("bin amplitude = " + str(mean_temp))
+#     print("bin CI = " + str(CI_temp))
+#     print("\n")
+
+#     bootstraps = subject.VonMise_fitting(x_bin2, y_bin2, 75)
+#     mean_temp = round(np.mean(bootstraps), 2)
+#     CI_temp = np.percentile(bootstraps,[2.5,97.5])
+#     print("bin amplitude = " + str(mean_temp))
+#     print("bin CI = " + str(CI_temp))
+#     print("\n")
