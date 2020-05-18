@@ -75,6 +75,7 @@ class Subject:
         self.permIter = 5000
 
         self.current_stimuliDiff = []
+        self.current_StimLocDiff = []
         self.DoVM_values = []
         self.bootstrap_values = []
         self.RM = []
@@ -129,6 +130,7 @@ class Subject:
         differencePrevious_stimulusID = recenter(differencePrevious_stimulusID)
         differencePrevious_stimulusLoc = recenter(differencePrevious_stimulusLoc, threshold=180)
         self.current_stimuliDiff = differencePrevious_stimulusID
+        self.current_StimLocDiff = differencePrevious_stimulusLoc
 
         return differencePrevious_stimulusID, differencePrevious_stimulusLoc, filtered_y, filter_RT
 
@@ -236,6 +238,7 @@ class Subject:
             output_data = output_data[output_data['trialNumber'] != self.trial_num - i]
         
         output_data['Stim_diff'] = self.current_stimuliDiff
+        output_data['Stim_Loc_diff'] = self.current_StimLocDiff
         output_data['DoVM_values'] = self.DoVM_values
         df = pd.DataFrame({'bootstrap_values':np.array(self.bootstrap_values)})
         df1 = pd.DataFrame({'Running_Mean':np.array(self.RM)})
@@ -248,6 +251,53 @@ class Subject:
     def CurvefitFunc(self, x, y, func=vonmise_derivative, init_vals=[-25, 4], bounds_input = ([-60,2],[60, 4])):
         best_vals, covar = curve_fit(func, x, y, p0=init_vals, bounds = bounds_input)
         return best_vals
+    
+    def VonMise_BinFitting(self, xRaw, yRaw, x_range, LocationDiff):
+#         mean_results = []
+#         std_results = []
+        x_bin1 = []
+        y_bin1 = []
+        for j, temp_LocationDiff in enumerate(LocationDiff):
+            if abs(temp_LocationDiff) > 0 * 90 and abs(temp_LocationDiff) < (0 + 1) * 90:
+                x_bin1.append(xRaw[j])
+                y_bin1.append(yRaw[j])
+        RandIndex = np.random.choice(len(x_bin1), 100, replace=True) # get randi index of xdata
+        x_bin1 = [x_bin1[i] for i in RandIndex] # change xdata index
+        y_bin1 = [y_bin1[i] for i in RandIndex] # change ydata index
+
+        x_bin2 = []
+        y_bin2 = []
+        for j, temp_LocationDiff in enumerate(LocationDiff):
+            if abs(temp_LocationDiff) > 1 * 90 and abs(temp_LocationDiff) < (1 + 1) * 90:
+                x_bin2.append(xRaw[j])
+                y_bin2.append(yRaw[j])
+        RandIndex = np.random.choice(len(x_bin2), 100, replace=True) # get randi index of xdata
+        x_bin2 = [x_bin2[i] for i in RandIndex] # change xdata index
+        y_bin2 = [y_bin2[i] for i in RandIndex] # change ydata index
+        
+        return x_bin1, y_bin1, x_bin2, y_bin2
+            
+        
+#         for i in range(2):
+#             x = []
+#             y = []
+#             for j, temp_LocationDiff in enumerate(LocationDiff):
+#                 if abs(temp_LocationDiff) > i * 90 and abs(temp_LocationDiff) < (i + 1) * 90:
+#                     x.append(xRaw[j])
+#                     y.append(yRaw[j])
+#             RandIndex = np.random.choice(len(x), 100, replace=True) # get randi index of xdata
+#             xdataNEW = [x[i] for i in RandIndex] # change xdata index
+#             ydataNEW = [y[i] for i in RandIndex] # change ydata index
+#             bootstraps = self.VonMise_fitting(xdataNEW, ydataNEW, 75)
+#             mean_temp = round(np.mean(bootstraps), 2)
+#             mean_results.append(mean_temp)
+#             std_temp = round(np.std(bootstraps), 2)
+#             std_results.append(std_temp)
+#             print( "bin size =" + str(len(xdataNEW)))
+#             print("bin amplitude = " + str(mean_temp))
+#             print("bin std = " + str(std_temp))
+#             print("\n")
+#         return mean_results, std_results
 
     def VonMise_fitting(self, x, y, x_range, func=vonmise_derivative, init_vals=[-25, 4],  bounds_input = ([-60,2],[60,4])):
         best_vals = self.CurvefitFunc(x, y, init_vals=init_vals, bounds_input = bounds_input)
@@ -270,24 +320,29 @@ class Subject:
                 except RuntimeError:
                     pass
             print("bs_a:",round(np.mean(OutA),2),"	95% CI:",np.percentile(OutA,[2.5,97.5]))
-            self.bootstrap_values = OutA
+            #self.bootstrap_values = OutA  ###ADD ME BACK YO
             # np.save(self.result_folder + 'bootstrap.npy', OutA)
             
         if self.permutation:
             # perm_a, perm_b = repeate_sampling('perm', xdata, ydata, CurvefitFunc, size = permSize)
-            OutA = [] # Output a array, store each trial's a
+            OutB = [] # Output a array, store each trial's a
             perm_xdata = x
             for i in range(self.permIter):
                 perm_xdata = np.random.permutation(perm_xdata) # permutate nonlocal xdata to update, don't change ydata
                 try:
                     temp_best_vals = self.CurvefitFunc(perm_xdata, y, init_vals=init_vals, bounds_input=bounds_input) # permutation make a sample * range(size) times
-                    OutA.append(temp_best_vals[0])
+                    new_x = np.linspace(-x_range, x_range, 300)
+                    new_y = [vonmise_derivative(xi,temp_best_vals[0],temp_best_vals[1]) for xi in new_x]
+                    if new_x[np.argmax(new_y)] > 0: 
+                        OutB.append(np.max(new_y))
+                    else: 
+                        OutB.append(-np.max(new_y))
                 except RuntimeError:
                     pass
-            print("perm_a:",round(np.mean(OutA),2),"	90% CI:",np.percentile(OutA,[5,95]))
+            print("perm_a:",round(np.mean(OutB),2),"	90% CI:",np.percentile(OutB,[5,95]))
 
         print('Von Mise Parameters: amplitude {0:.4f}, Kai {1:.4f}.'.format(best_vals[0],best_vals[1]))
-        return best_vals
+        return OutA ###TAKE OUT OUTA YO
 
 
     def save_DerivativeVonMisesFigure(self, xlabel_name, filename, x, y, x_range, best_vals):
@@ -338,59 +393,86 @@ if __name__ == "__main__":
     results_path = './results/'
 
     ## Loop through every subjects ##
-    #for i in range(len(dataList)):
+    x_bin1 = [] 
+    y_bin1 = []
+    x_bin2 = []
+    y_bin2 = []
+    for i in range(len(dataList)):
 
-        #temp_filename, _ = os.path.splitext(subjectList[i])
-        #prefix = temp_filename.split('_')[0]
-    prefix = 'UnderGrad_SuperSubject'
+        temp_filename, _ = os.path.splitext(subjectList[i])
+        prefix = temp_filename.split('_')[0]
+        #prefix = 'SuperSubject'
         
-    result_saving_path = results_path + prefix + '/'
-    os.mkdir(result_saving_path)
+        result_saving_path = results_path + prefix + '/'
+#         os.mkdir(result_saving_path)
         
         ## Loop through every trial back up to 3 ##
-    for j in range(3):
+#         for j in range(3):
+        j = 0 ### change this to change the num of trials back
 
-            nBack = j + 1
-            result_saving_path_figure = prefix + '_VM_Figure_' + str(nBack) + 'nBack.pdf'
-            result_saving_path_outputcsv = prefix + '_VM_output_' + str(nBack) + 'nBack.csv'
-            # os.mkdir(result_saving_path)
+        nBack = j + 1
+        result_saving_path_figure = prefix + '_VM_Figure_' + str(nBack) + 'nBack.pdf'
+        result_saving_path_outputcsv = prefix + '_VM_output_' + str(nBack) + 'nBack.csv'
+        # os.mkdir(result_saving_path)
 
-            ### Initialize a subject ### List[i]
-            subject = Subject(data, nBack, result_saving_path, bootstrap=True, permutation=True)
+        ### Initialize a subject ### 
+        subject = Subject(dataList[i], nBack, result_saving_path, bootstrap=True, permutation=False)
 
-            #subject.save_RTfigure('ReactionTime.pdf')
-            subject.outlier_removal_RT()
-            #subject.save_RTfigure('ReactionTime_OutlierRemoved.pdf')
-            #subject.save_SRfigure('RawData.pdf')
+        #subject.save_RTfigure('ReactionTime.pdf')
+        subject.outlier_removal_RT()
+        #subject.save_RTfigure('ReactionTime_OutlierRemoved.pdf')
+        #subject.save_SRfigure('RawData.pdf')
 
-            ### Polynomial Correction ###
-            # subject.toLinear()
-            # subject.save_SRfigure('CorrectedData.pdf')
-            subject.error()
-            #subject.save_Errorfigure('RawError.pdf')
-            subject.outlier_removal_SD()
-            #subject.save_Errorfigure('ErrorResponse_OutlierRemoved.pdf')
-            subject.polyCorrection_onError()
-            # subject.save_Polyfigure('PolyFit.pdf')
-            # subject.fromLinear()
-            #subject.save_Errorfigure2('BiasRemoved.pdf')
+        ### Polynomial Correction ###
+        # subject.toLinear()
+        # subject.save_SRfigure('CorrectedData.pdf')
+        subject.error()
+        #subject.save_Errorfigure('RawError.pdf')
+        subject.outlier_removal_SD()
+        #subject.save_Errorfigure('ErrorResponse_OutlierRemoved.pdf')
+        subject.polyCorrection_onError()
+        # subject.save_Polyfigure('PolyFit.pdf')
+        # subject.fromLinear()
+        #subject.save_Errorfigure2('BiasRemoved.pdf')
 
-            ## Compute the stimulus difference ##
-            stimuli_diff, loc_diff, filtered_responseError, filtered_RT = subject.getnBack_diff()
+        ## Compute the stimulus difference ##
+        stimuli_diff, loc_diff, filtered_responseError, filtered_RT = subject.getnBack_diff()
 
-            # ## Von Mise fitting: Shape Similarity##
-            best_vals = subject.VonMise_fitting(stimuli_diff, filtered_responseError, 75)
-            subject.save_DerivativeVonMisesFigure('Morph Difference from Previous', result_saving_path_figure, stimuli_diff, filtered_responseError, 75, best_vals)
+        # ## Von Mise fitting: Shape Similarity##
+        #best_vals = subject.VonMise_fitting(stimuli_diff, filtered_responseError, 75)
+        temp_x_bin1, temp_y_bin1, temp_x_bin2, temp_y_bin2 = subject.VonMise_BinFitting(stimuli_diff, filtered_responseError, 75, loc_diff)
+        x_bin1 = x_bin1 + temp_x_bin1
+        y_bin1 = y_bin1 + temp_y_bin1
+        x_bin2 = x_bin2 + temp_x_bin2
+        y_bin2 = y_bin2 + temp_y_bin2
+#             print("Bin amplitudes:")
+#             print(mean_results)
+#             print("Bin stds:")
+#             print(std_results)
+        #subject.save_DerivativeVonMisesFigure('Morph Difference from Previous', result_saving_path_figure, stimuli_diff, filtered_responseError, 75, best_vals)
 
-            #### Extract CSV ####
-            subject.Extract_currentCSV(result_saving_path_outputcsv)
+        #### Extract CSV ####
+        #subject.Extract_currentCSV(result_saving_path_outputcsv)
 
-            ## Trials back and Reaction Time for Shape##
-            # save_TrialsBack_RT_Figure(stimuli_diff, filtered_RT, 75, 'Morph Difference from Previous', result_saving_path + 'TrialsBack_RT_Shape.pdf')
+        ## Trials back and Reaction Time for Shape##
+        # save_TrialsBack_RT_Figure(stimuli_diff, filtered_RT, 75, 'Morph Difference from Previous', result_saving_path + 'TrialsBack_RT_Shape.pdf')
 
-            ## Von Mise fitting: Location Similarity##
-            # best_vals = subject.VonMise_fitting(loc_diff, filtered_responseError)
-            # subject.save_DerivativeVonMisesFigure('Angle Location Difference from Previous', 'LocationDiff_DerivativeVonMises.pdf', loc_diff, filtered_responseError, 180, best_vals)
+        ## Von Mise fitting: Location Similarity##
+        # best_vals = subject.VonMise_fitting(loc_diff, filtered_responseError)
+        # subject.save_DerivativeVonMisesFigure('Angle Location Difference from Previous', 'LocationDiff_DerivativeVonMises.pdf', loc_diff, filtered_responseError, 180, best_vals)
 
-            ## Trials back and Reaction Time for Location##
-            # save_TrialsBack_RT_Figure(loc_diff, filtered_RT, 180, 'Location Difference from Previous', result_saving_path + 'TrialsBack_RT_Location.pdf')
+        ## Trials back and Reaction Time for Location##
+        # save_TrialsBack_RT_Figure(loc_diff, filtered_RT, 180, 'Location Difference from Previous', result_saving_path + 'TrialsBack_RT_Location.pdf')
+    bootstraps = subject.VonMise_fitting(x_bin1, y_bin1, 75)
+    mean_temp = round(np.mean(bootstraps), 2)
+    CI_temp = np.percentile(bootstraps,[2.5,97.5])
+    print("bin amplitude = " + str(mean_temp))
+    print("bin CI = " + str(CI_temp))
+    print("\n")
+    
+    bootstraps = subject.VonMise_fitting(x_bin2, y_bin2, 75)
+    mean_temp = round(np.mean(bootstraps), 2)
+    CI_temp = np.percentile(bootstraps,[2.5,97.5])
+    print("bin amplitude = " + str(mean_temp))
+    print("bin CI = " + str(CI_temp))
+    print("\n")
