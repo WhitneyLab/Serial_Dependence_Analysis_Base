@@ -5,3 +5,4 @@ __pycache__
 *.eps
 *.icloud
 *.csv
+./analysis_app_data/PerceptualSimilarity

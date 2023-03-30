@@ -7,6 +7,7 @@ import torch
 import cv2
 import vgg_loss
 from tqdm import tqdm
+import lpips
 
 import matplotlib.pyplot as plt
 plt.rcParams.update({'font.size': 22})
@@ -35,6 +36,13 @@ def get_similarity(image1, image2):
     loss = crit_vgg(img1, img2, target_is_features=False)
     return loss.item()
 
+def get_image_tensor(image):
+    img = cv2.imread(image) / 255.0
+    img = cv2.resize(img, (256,256))
+    img = torch.from_numpy(img)
+    img = img.permute(2,0,1).float() * 2 - 1
+    return img
+
 data['origin'] = data['origin'].str.replace('.jpg', '.jpeg')
 data['origin_file'] = '../../../Datasets/ISIC-Archive-Downloader/Data/img/Images/' + data['origin']
 
@@ -45,19 +53,29 @@ data['shifted_origin_1forward'] = data['origin'].shift(periods = -1)
 data['shifted_origin_file_1forward'] = '../../../Datasets/ISIC-Archive-Downloader/Data/img/Images/' + data['shifted_origin_1forward']
 
 data = data.dropna()
-# data = data.reset_index()
-# data['similarity'] = None
-# for index, row in tqdm(data.iterrows()):
-#     row['similarity'] = get_similarity(row['origin_file'], row['shifted_origin_file'])
-tqdm.pandas()
+data = data.reset_index()
 
-data['similarity_1back'] = data.progress_apply(lambda row: get_similarity(row['origin_file'], row['shifted_origin_file_1back']), axis = 1)
+# tqdm.pandas()
+
+loss_fn_vgg = lpips.LPIPS(net='alex')
+
+# data['similarity_1back'] = data.progress_apply(lambda row: loss_fn_vgg(get_image_tensor(row['origin_file']), get_image_tensor(row['shifted_origin_file_1back'])), axis = 1)
+# data['similarity_1back'] = [loss_fn_vgg(get_image_tensor(x), get_image_tensor(y)) for x, y in tqdm(zip(data['origin_file'], data['shifted_origin_file_1back']))]
+data['similarity_1back'] = None
+with torch.no_grad():
+    for i in tqdm(range(len(data))):
+        data.loc[i, "similarity_1back"] = loss_fn_vgg(get_image_tensor(data.loc[i, "origin_file"]), get_image_tensor(data.loc[i, "shifted_origin_file_1back"]))
 print("1back similarity computed!")
 
-data['similarity_1forward'] = data.progress_apply(lambda row: get_similarity(row['origin_file'], row['shifted_origin_file_1forward']), axis = 1)
+# data['similarity_1forward'] = data.progress_apply(lambda row: loss_fn_vgg(get_image_tensor(row['origin_file']), get_image_tensor(row['shifted_origin_file_1forward'])), axis = 1)
+# data['similarity_1forward'] = [loss_fn_vgg(get_image_tensor(x), get_image_tensor(y)) for x, y in tqdm(zip(data['origin_file'], data['shifted_origin_file_1forward']))]
+data['similarity_1forward'] = None
+with torch.no_grad():
+    for i in tqdm(range(len(data))):
+        data.loc[i, "similarity_1forward"] = loss_fn_vgg(get_image_tensor(data.loc[i, "origin_file"]), get_image_tensor(data.loc[i, "shifted_origin_file_1forward"]))
 print("1forward similarity computed!")
 
 print(data.head())
 
-data.to_csv("prepped_data_with_similarity.csv")
+data.to_csv("prepped_data_with_lpips_alex_similarity.csv")
 print("done!")
